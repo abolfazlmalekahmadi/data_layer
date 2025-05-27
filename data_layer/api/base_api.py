@@ -35,7 +35,7 @@ def split_dataset_if_needed(dataset, split_name="train", train_ratio=0.8, val_ra
     return dataset
 
 # API endpoint to process dataset and upload to ClearML
-@app.post("/process_dataset/")
+@app.post("/upload_hugging_dataset/")
 async def process_dataset(dataset_name: str, dataset_config: Optional[str] = None):
     # Initialize ClearML Task
     task = Task.init(project_name="HuggingFace Pipeline", task_name="Scalable Dataset Processing")
@@ -113,6 +113,25 @@ async def process_dataset(dataset_name: str, dataset_config: Optional[str] = Non
     except Exception as e:
         task.get_logger().report_text(f"Error processing dataset: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing dataset: {str(e)}")
+
+
+@app.post("/upload_s3_dataset/")
+async def process_dataset(dataset_name: str,dataset_project: str, bucket_name: str, s3_path: Optional[str]=""):
+
+    # Create a new dataset entry in ClearML
+    dataset = ClearMLDataset.create(
+        dataset_name=dataset_name,
+        dataset_project=dataset_project
+    )
+
+    dataset.add_external_files(
+        source_url=f"s3://{bucket_name}/{s3_path}",
+        dataset_path="data/"
+    )
+
+    dataset.upload()
+    dataset.finalize()
+
 
 @app.get("/list_all_datasets/")
 async def list_all_datasets(dataset_project: str = "HuggingFace Pipeline"):
