@@ -76,18 +76,18 @@ async def process_dataset(dataset_name: str, dataset_config: Optional[str] = Non
             random_samples = df.sample(n=min(sample_size, len(df)), random_state=seed).to_dict(orient="records")
 
             # Log samples dynamically based on available features
-            for i, sample in enumerate(random_samples):
-                task.get_logger().report_text(f"Sample {i+1} ({split_name}):")
-                for feature, value in sample.items():
-                    # Handle string truncation for long text fields
-                    display_value = str(value)[:200] + "..." if isinstance(value, str) and len(str(value)) > 200 else value
-                    task.get_logger().report_text(f"{feature}: {display_value}")
-                task.get_logger().report_table(
-                    title=f"Sample {i+1} ({split_name})",
-                    series=f"Random Samples ({split_name})",
-                    iteration=0,
-                    table_plot=pd.DataFrame([sample])
-                )
+            # for i, sample in enumerate(random_samples):
+            #     task.get_logger().report_text(f"Sample {i+1} ({split_name}):")
+            #     for feature, value in sample.items():
+            #         # Handle string truncation for long text fields
+            #         display_value = str(value)[:200] + "..." if isinstance(value, str) and len(str(value)) > 200 else value
+            #         task.get_logger().report_text(f"{feature}: {display_value}")
+            #     task.get_logger().report_table(
+            #         title=f"Sample {i+1} ({split_name})",
+            #         series=f"Random Samples ({split_name})",
+            #         iteration=0,
+            #         table_plot=pd.DataFrame([sample])
+            #     )
 
         # Step 4: Save all splits to ClearML Dataset for versioning
         task.get_logger().report_text("Creating ClearML Dataset...")

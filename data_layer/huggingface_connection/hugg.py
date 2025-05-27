@@ -36,7 +36,7 @@ def split_dataset_if_needed(dataset, split_name="train", train_ratio=0.8, val_ra
 task = Task.init(project_name="HuggingFace Pipeline", task_name="Scalable Dataset Processing")
 
 # Dataset configuration (modify these for different datasets)
-dataset_name = "pourmand1376/fa-wikipedia"  # Example: "pourmand1376/fa-wikipedia"
+dataset_name = "ylecun/mnist"  # Example: "pourmand1376/fa-wikipedia"
 dataset_config = None # Set to None if no config (e.g., for fa-wikipedia)
 sample_size = 5  # Number of random samples to log per split
 seed = 42  # For reproducibility
@@ -70,20 +70,20 @@ for split_name in ds.keys():
     # Select and log random samples
     task.get_logger().report_text(f"Selecting {sample_size} random samples for {split_name}...")
     random_samples = df.sample(n=min(sample_size, len(df)), random_state=seed).to_dict(orient="records")
-    
     # Log samples dynamically based on available features
-    for i, sample in enumerate(random_samples):
-        task.get_logger().report_text(f"Sample {i+1} ({split_name}):")
-        for feature, value in sample.items():
-            # Handle string truncation for long text fields
-            display_value = str(value)[:200] + "..." if isinstance(value, str) and len(str(value)) > 200 else value
-            task.get_logger().report_text(f"{feature}: {display_value}")
-        task.get_logger().report_table(
-            title=f"Sample {i+1} ({split_name})",
-            series=f"Random Samples ({split_name})",
-            iteration=0,
-            table_plot=pd.DataFrame([sample])
-        )
+    # What is this for?
+    # for i, sample in enumerate(random_samples):
+    #     task.get_logger().report_text(f"Sample {i+1} ({split_name}):")
+    #     for feature, value in sample.items():
+    #         # Handle string truncation for long text fields
+    #         display_value = str(value)[:200] + "..." if isinstance(value, str) and len(str(value)) > 200 else value
+    #         task.get_logger().report_text(f"{feature}: {display_value}")
+    #     task.get_logger().report_table(
+    #         title=f"Sample {i+1} ({split_name})",
+    #         series=f"Random Samples ({split_name})",
+    #         iteration=0,
+    #         table_plot=pd.DataFrame([sample])
+    #     )
 
 # Step 4: Save all splits to ClearML Dataset for versioning
 task.get_logger().report_text("Creating ClearML Dataset...")
