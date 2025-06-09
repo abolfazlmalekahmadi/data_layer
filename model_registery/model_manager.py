@@ -92,7 +92,11 @@ class ModelRegistry:
 
     def download_file(self, remote_path, local_path):
         """Download a single file from Ceph S3."""
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        if local_path.endswith('/'):
+            os.makedirs(local_path, exist_ok=True)
+            local_path = os.path.join(local_path, os.path.basename(remote_path))
+        else:
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
         try:
             self.s3.download_file(BUCKET_NAME, remote_path, local_path)
             print(f"Downloaded '{remote_path}' to '{local_path}'")
@@ -194,22 +198,25 @@ if __name__ == "__main__":
     # registry.download_folder("models/llm/qwen-small/Qwen2.5-0.5B-Instruct", "/home/user01/model_data/Qwen2.5-0.5B-Instruct")
 
     # # Register a model
-    registry.register_model(
-        username="mlops",
-        user_token="c525a364-b08c-4ad7-a445-ac1e2410f447",
-        model_name="llm-small",
-        model_version="1.0",
-        local_path="/home/user01/model_data/Qwen2.5-0.5B-Instruct",
-        train_code_path="./test.py",
-        extra_json_path="./test.json"
-    )
+    # registry.register_model(
+    #     username="mlops",
+    #     user_token="c525a364-b08c-4ad7-a445-ac1e2410f447",
+    #     model_name="llm-small",
+    #     model_version="1.0",
+    #     local_path="/home/user01/model_data/Qwen2.5-0.5B-Instruct",
+    #     train_code_path="./test.py",
+    #     extra_json_path="./test.json"
+    # )
     # path = registry.download_model(username='mlops', 
     #                         user_token='c525a364-b08c-4ad7-a445-ac1e2410f447', 
     #                         model_name='llm-small', 
     #                         model_version='1.0', 
     #                         local_path='model_dir/')
     # print(path)
-    # registry.upload_to_ceph("model_dir/extra.json", 'test/')
+    # registry.upload_file("/home/user01/demo_17_03_1404/datasets/abdomenus_512.npz", "datasets/image_segmentation/AbdomenUS/" )
+    registry.download_file("datasets/image_segmentation/AbdomenUS/abdomenus_512.npz", "./")
+
+# /home/user01/demo_17_03_1404/datasets/abdomenus_512.npz
     # # Download the model
     # registry.download_model(
     #     username="mlops",
