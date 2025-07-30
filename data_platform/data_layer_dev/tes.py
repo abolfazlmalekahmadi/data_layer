@@ -716,44 +716,80 @@
 
 
 
-import os
-import boto3
-from tqdm import tqdm
+# import os
+# import boto3
+# from tqdm import tqdm
 
-S3_CONFIG = {
-    "access_key": os.getenv("S3_ACCESS_KEY", "OAF0MC26UA7DV9WS11X5"),
-    "secret_key": os.getenv("S3_SECRET_KEY", "6SY2dTxhcIVEsjbfpjRUBhe3k7mMJIjZpccwvw3d"),
-    "endpoint_url": os.getenv("S3_ENDPOINT_URL", "https://s3.cloud-ai.ir"),
-    "bucket_name": os.getenv("S3_BUCKET_NAME", "mlops")
-}
+# S3_CONFIG = {
+#     "access_key": os.getenv("S3_ACCESS_KEY", "OAF0MC26UA7DV9WS11X5"),
+#     "secret_key": os.getenv("S3_SECRET_KEY", "6SY2dTxhcIVEsjbfpjRUBhe3k7mMJIjZpccwvw3d"),
+#     "endpoint_url": os.getenv("S3_ENDPOINT_URL", "https://s3.cloud-ai.ir"),
+#     "bucket_name": os.getenv("S3_BUCKET_NAME", "mlops")
+# }
 
-def get_s3_folder_size(bucket_name, prefix, s3_config):
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=s3_config["access_key"],
-        aws_secret_access_key=s3_config["secret_key"],
-        endpoint_url=s3_config["endpoint_url"],
-    )
+# def get_s3_folder_size(bucket_name, prefix, s3_config):
+#     s3 = boto3.client(
+#         's3',
+#         aws_access_key_id=s3_config["access_key"],
+#         aws_secret_access_key=s3_config["secret_key"],
+#         endpoint_url=s3_config["endpoint_url"],
+#     )
 
-    total_size = 0
-    paginator = s3.get_paginator('list_objects_v2')
-    pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+#     total_size = 0
+#     paginator = s3.get_paginator('list_objects_v2')
+#     pages = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
-    found = False
-    for page in tqdm(pages, desc="Scanning S3"):
-        contents = page.get('Contents', [])
-        if contents:
-            found = True
-            for obj in contents:
-                total_size += obj['Size']
+#     found = False
+#     for page in tqdm(pages, desc="Scanning S3"):
+#         contents = page.get('Contents', [])
+#         if contents:
+#             found = True
+#             for obj in contents:
+#                 total_size += obj['Size']
 
-    if not found:
-        print(f"No objects found at prefix '{prefix}' in bucket '{bucket_name}'.")
+#     if not found:
+#         print(f"No objects found at prefix '{prefix}' in bucket '{bucket_name}'.")
 
-    size_mb = total_size / (1024 ** 2)
-    return size_mb
+#     size_mb = total_size / (1024 ** 2)
+#     return size_mb
 
-# Correct S3 object key or prefix — NOT a URL
-prefix = "datasets/"  # or "folder_name/"
-folder_size_mb = get_s3_folder_size(S3_CONFIG["bucket_name"], prefix, S3_CONFIG)
-print(f"Folder size: {folder_size_mb:.2f} MB")
+# # Correct S3 object key or prefix — NOT a URL
+# prefix = "datasets/"  # or "folder_name/"
+# folder_size_mb = get_s3_folder_size(S3_CONFIG["bucket_name"], prefix, S3_CONFIG)
+# print(f"Folder size: {folder_size_mb:.2f} MB")
+# from huggingface_hub import HfApi
+
+# api = HfApi()
+
+# # Latest commit on the default branch (usually "main")
+# info = api.repo_info("glue", repo_type="dataset")
+# print(info.sha)            # e.g., '8f3a9c1...'
+# print(info.last_modified)  # when it was updated
+
+# # Or latest on a specific branch/tag
+# info_dev = api.repo_info("imdb", repo_type="dataset", revision="dev")   # branch
+# info_tag = api.repo_info("imdb", repo_type="dataset", revision="v1.0")  # tag
+# print(info_dev.sha, info_tag.sha)
+
+# # If you want the most recent commit object explicitly:
+# commit = next(api.list_repo_commits("imdb", repo_type="dataset", revision="main", limit=1))
+# print(commit.commit_id, commit.title, commit.created_at)
+
+
+import openml
+
+did = 31  # your dataset id
+ds = openml.datasets.get_dataset(did, download_data=False, download_qualities=True)
+
+# Commonly useful fields
+print("data_id:", ds.dataset_id)
+print("name:", ds.name)
+print("version:", ds.version)                  # integer version number
+print("version_label:", ds.version_label)   
+# print("version_label:", type(ds.version_label)      # optional semantic label
+# optional semantic label
+print("upload_date:", ds.upload_date)  
+print("upload_date:", type(ds.upload_date))          # when this version was uploaded
+# when this version was uploaded
+# print("status:", ds.status)                    # e.g., 'active'
+print(ds)

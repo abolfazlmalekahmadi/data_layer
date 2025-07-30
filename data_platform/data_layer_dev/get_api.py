@@ -7,10 +7,12 @@ import shutil
 import kagglehub
 from pathlib import Path
 import pandas as pd
-from datasets import load_dataset
+from datasets import load_dataset , get_dataset_infos
+from huggingface_hub import HfApi
 import json
 from typing import Optional, List
 import logging
+from datetime import datetime
 from fastapi.responses import FileResponse
 import uuid
 from datetime import datetime
@@ -44,6 +46,9 @@ class DatasetMetadata(BaseModel):
     """Schema for the final, persisted metadata of a dataset."""
     dataset_id: str
     dataset_name: str
+    dataset_config: Optional[str] = None
+    last_commit: Optional[str] = None
+    last_modified: Optional[str] = None 
     user_name: str
     private: bool = False
     version: int = 0
@@ -258,6 +263,9 @@ class S3Handler:
                 metadata = DatasetMetadata(
                     dataset_id=dataset_id,
                     dataset_name=dataset_name or local_file.stem,
+                    dataset_config=None,
+                    last_commit = None,
+                    last_modified = None ,
                     user_name=user_name,
                     private=private,
                     source="s3",
@@ -312,6 +320,9 @@ def process_kaggle_dataset(request: KaggleDownloadRequest) -> dict:
             metadata = DatasetMetadata(
                 dataset_id=ds_id,
                 dataset_name=request.dataset_name or request.dataset_id.replace("/", "_"),
+                dataset_config=None,
+                last_commit = None,
+                last_modified = None ,
                 user_name=request.user_name,
                 private=request.private,
                 source="kaggle",
@@ -355,12 +366,20 @@ def process_huggingface_dataset(dataset_name: str, dataset_config: Optional[str]
             _save_request_info_to_temp(temp_path, {"source": "huggingface", "dataset_name": dataset_name, "user_name": user_name})
             logger.info(f"Downloading Hugging Face dataset '{dataset_name}'")
             ds = load_dataset(dataset_name, dataset_config, cache_dir=str(temp_path / "cache"))
+            api = HfApi()
+
+            # Latest commit on the default branch (usually "main")
+            info = api.repo_info(dataset_name, repo_type="dataset")
             local_dataset_dir = temp_path / "huggingface_dataset"
             ds.save_to_disk(str(local_dataset_dir))
             ds_id = storage_handler.generate_dataset_id()
             metadata = DatasetMetadata(
                 dataset_id=ds_id,
-                dataset_name=dataset_name_override or dataset_name.replace('/', '_'),
+                # dataset_name=dataset_name_override or dataset_name.replace('/', '_'),
+                dataset_name=dataset_name.replace('/', '_'),
+                dataset_config=dataset_config,
+                last_commit = info.sha,
+                last_modified = info.last_modified.isoformat(),
                 user_name=user_name,
                 private=private,
                 source="huggingface",
@@ -395,6 +414,9 @@ def process_openml_dataset(dataset_id: int, dataset_name: Optional[str], user_na
             metadata = DatasetMetadata(
                 dataset_id=ds_id,
                 dataset_name=dataset_name or dataset.name,
+                dataset_config= str(dataset.version),
+                last_commit = str(dataset.version_label),
+                last_modified = dataset.upload_date,
                 user_name=user_name,
                 private=private,
                 source="openml",
