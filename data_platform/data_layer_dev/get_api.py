@@ -57,7 +57,13 @@ class S3DownloadRequest(BaseModel):
     s3_file_path: str
     user_name: str
     dataset_name: Optional[str] = None
+    access_key:str
+    secret_key:str
+    endpoint_url:str
+    bucket_name:str
     private: bool = False
+
+    
 
 class KaggleDownloadRequest(BaseModel):
     dataset_id: str
@@ -89,23 +95,7 @@ class DownloadDatasetRequest(BaseModel):
     dataset_id: str
     user_name: str
 
-S3_CONFIG = {
-    "access_key": os.getenv("S3_ACCESS_KEY", "OAF0MC26UA7DV9WS11X5"),
-    "secret_key": os.getenv("S3_SECRET_KEY", "6SY2dTxhcIVEsjbfpjRUBhe3k7mMJIjZpccwvw3d"),
-    "endpoint_url": os.getenv("S3_ENDPOINT_URL", "https://s3.cloud-ai.ir"),
-    "bucket_name": os.getenv("S3_BUCKET_NAME", "mlops")
-}
-try:
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=S3_CONFIG["access_key"],
-        aws_secret_access_key=S3_CONFIG["secret_key"],
-        endpoint_url=S3_CONFIG["endpoint_url"]
-    )
-    logger.info("S3 client initialized successfully.")
-except Exception as e:
-    logger.critical(f"Failed to initialize S3 client: {e}")
-    s3_client = None
+
 
 def _save_request_info_to_temp(temp_path: Path, request_info: dict):
     try:
@@ -217,15 +207,31 @@ class DatasetStorageHandler:
 storage_handler = DatasetStorageHandler()
 
 class S3Handler:
+    def __init__(self, *, access_key: str, secret_key: str, endpoint_url: str, bucket_name: str):
+        self.bucket_name = bucket_name
+        try:
+            # Build a client for this request
+            self.s3_client = boto3.client(
+                "s3",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                endpoint_url=endpoint_url
+            )
+            # Do NOT log secrets
+            logger.info(f"S3 client initialized for endpoint '{endpoint_url}' and bucket '{bucket_name}'.")
+        except Exception as e:
+            logger.critical(f"Failed to initialize S3 client: {e}")
+            self.s3_client = None
+
     def download_file(self, remote_path: str, local_path: Path) -> None:
-        if not s3_client:
+        if not self.s3_client:
             raise HTTPException(status_code=503, detail="S3 service is not available.")
         try:
             local_path.parent.mkdir(parents=True, exist_ok=True)
-            s3_client.download_file(S3_CONFIG["bucket_name"], remote_path, str(local_path))
-            logger.info(f"S3 Download: '{remote_path}' -> '{local_path}'")
+            self.s3_client.download_file(self.bucket_name, remote_path, str(local_path))
+            logger.info(f"S3 Download: '{remote_path}' -> '{local_path}' (bucket='{self.bucket_name}')")
         except Exception as e:
-            logger.error(f"S3 download failed for '{remote_path}': {e}")
+            logger.error(f"S3 download failed for '{remote_path}' in bucket '{self.bucket_name}': {e}")
             raise HTTPException(status_code=500, detail=f"S3 download error: {e}")
 
     def process_s3_dataset(self, s3_file_path: str, dataset_name: Optional[str], user_name: str, private: bool) -> dict:
@@ -233,9 +239,21 @@ class S3Handler:
             with tempfile.TemporaryDirectory(dir=TEMP_DIR) as temp_dir:
                 temp_path = Path(temp_dir)
                 logger.info(f"Created temporary directory for S3 download: {temp_path}")
-                _save_request_info_to_temp(temp_path, {"source": "s3", "s3_file_path": s3_file_path, "user_name": user_name})
+
+                # Save only non-sensitive request info
+                _save_request_info_to_temp(
+                    temp_path,
+                    {
+                        "source": "s3",
+                        "s3_file_path": s3_file_path,
+                        "user_name": user_name,
+                        "bucket_name": self.bucket_name
+                    }
+                )
+
                 local_file = temp_path / Path(s3_file_path).name
                 self.download_file(s3_file_path, local_file)
+
                 dataset_id = storage_handler.generate_dataset_id()
                 metadata = DatasetMetadata(
                     dataset_id=dataset_id,
@@ -397,9 +415,17 @@ def process_openml_dataset(dataset_id: int, dataset_name: Optional[str], user_na
 
 @app.post("/s3-to-pvc", summary="Ingest from S3", tags=["Ingestion"])
 async def s3_to_pvc(request: S3DownloadRequest):
-    handler = S3Handler()
+    handler = S3Handler(
+        access_key=request.access_key,
+        secret_key=request.secret_key,
+        endpoint_url=request.endpoint_url,
+        bucket_name=request.bucket_name,
+    )
     return handler.process_s3_dataset(
-        request.s3_file_path, request.dataset_name, request.user_name, request.private
+        request.s3_file_path,
+        request.dataset_name,
+        request.user_name,
+        request.private
     )
 
 @app.post("/kaggle-to-pvc", summary="Ingest from Kaggle", tags=["Ingestion"])
@@ -476,4 +502,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=1234)
+    uvicorn.run(app, host="0.0.0.0", port=1235)
