@@ -360,6 +360,7 @@ def process_kaggle_dataset(request: KaggleDownloadRequest) -> dict:
 
 def process_huggingface_dataset(dataset_name: str, dataset_config: Optional[str], dataset_name_override: Optional[str], user_name: str, private: bool) -> dict:
     try:
+        DatasetConditionChecker().check_huggingface_size(dataset_name, dataset_config)
         with tempfile.TemporaryDirectory(dir=TEMP_DIR) as temp_dir:
             temp_path = Path(temp_dir)
             logger.info(f"Created temporary directory for Hugging Face download: {temp_path}")
@@ -400,6 +401,7 @@ def process_huggingface_dataset(dataset_name: str, dataset_config: Optional[str]
 
 def process_openml_dataset(dataset_id: int, dataset_name: Optional[str], user_name: str, private: bool) -> dict:
     try:
+        DatasetConditionChecker().check_openml_size(dataset_id)
         with tempfile.TemporaryDirectory(dir=TEMP_DIR) as temp_dir:
             temp_path = Path(temp_dir)
             logger.info(f"Created temporary directory for OpenML download: {temp_path}")
@@ -449,6 +451,56 @@ async def s3_to_pvc(request: S3DownloadRequest):
         request.user_name,
         request.private
     )
+
+
+
+class DatasetConditionChecker:
+    def __init__(self, temp_dir: Path = TEMP_DIR):
+        self.temp_dir = temp_dir
+
+    def has_enough_space(self, required_bytes: int, buffer_ratio: float = 1.1) -> bool:
+        total, used, free = shutil.disk_usage(self.temp_dir)
+        logger.info(f"storage total : {total} , used : {used} , free : {free}")
+        return free > required_bytes * buffer_ratio
+
+    def check_huggingface_size(self, dataset_name: str, dataset_config: Optional[str] = None) -> None:
+        try:
+            infos = get_dataset_infos(dataset_name)
+            for config, info in infos.items():
+                if dataset_config is None or config == dataset_config:
+                    estimated_size = 0
+                    if hasattr(info, "size_in_bytes") and info.size_in_bytes:
+                        estimated_size = info.size_in_bytes
+                    elif hasattr(info, "dataset_size") and info.dataset_size:
+                        estimated_size = info.dataset_size
+                    elif hasattr(info, "download_size") and info.download_size:
+                        estimated_size = info.download_size
+
+                    logger.info(f"estimated size of dataset is {estimated_size}")
+                    if estimated_size > 0 and not self.has_enough_space(estimated_size):
+                        raise HTTPException(status_code=507, detail="Not enough disk space for Hugging Face dataset.")
+        except Exception as e:
+            logger.warning(f"Could not estimate Hugging Face dataset size: {e}")
+
+    def check_openml_size(self, dataset_id: int) -> None:
+        try:
+            dataset = openml.datasets.get_dataset(dataset_id, download_all_files=False)
+            n_instances = dataset.qualities.get("NumberOfInstances")
+            n_features = dataset.qualities.get("NumberOfFeatures")
+            if n_instances and n_features:
+                estimated_size = int(n_instances) * int(n_features) * 100  # worst case (bytes)
+                logger.info(f"estimated size of dataset is {estimated_size}")
+                if not self.has_enough_space(estimated_size):
+                    raise HTTPException(status_code=507, detail="Not enough disk space for OpenML dataset.")
+        except Exception as e:
+            logger.warning(f"Could not estimate OpenML dataset size: {e}")
+
+
+
+
+
+
+
 
 @app.post("/kaggle-to-pvc", summary="Ingest from Kaggle", tags=["Ingestion"])
 async def kaggle_to_pvc(request: KaggleDownloadRequest):
