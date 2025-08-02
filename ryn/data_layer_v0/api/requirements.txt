@@ -1,0 +1,4 @@
+fastapi
+clearml
+datasets
+pandas
