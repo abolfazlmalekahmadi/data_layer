@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, HTTPException
 from data.data_ingestion.models.requests import (
     HuggingFaceDownloadRequest,
@@ -12,6 +13,8 @@ from data.data_ingestion.handlers.huggingface_handler import process_huggingface
 from data.data_ingestion.handlers.kaggle_handler import process_kaggle_dataset
 from data.data_ingestion.handlers.openml_handler import process_openml_dataset
 from data.data_ingestion.handlers.s3_handler import S3Handler
+from fastapi import Request  # This might be missing or incorrectly written as 'from Request'
+from concurrent.futures import ProcessPoolExecutor
 
 app = FastAPI(
     title="Dataset Ingestion API",
@@ -21,54 +24,89 @@ app = FastAPI(
 
 storage_handler = DatasetStorageHandler()
 
+# Create a queue to handle the requests
+request_queue = asyncio.Queue()
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def process_queue():
+    while True:
+        request, handler = await request_queue.get()
+        try:
+            if request is not None:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(request)
+                else:
+                    handler(request)
+            else:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler()
+                else:
+                    handler()
+        except Exception as e:
+            logger.error(f"Error processing request: {e}")
+        finally:
+            request_queue.task_done()
+
+# Start the queue worker in the background
+@app.on_event("startup")
+async def startup():
+    num_workers = 20
+    for _ in range(num_workers):
+        asyncio.create_task(process_queue())
+        
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
-@app.post("/huggingface-to-pvc")
-def ingest_huggingface(request: HuggingFaceDownloadRequest):
-    return process_huggingface_dataset(
-        dataset_name=request.dataset_name,
-        dataset_config=request.dataset_config,
-        dataset_name_override=request.dataset_name_override,
-        user_name=request.user_name,
-        private=request.private,
-    )
+executor = ProcessPoolExecutor(max_workers=4)
 
+@app.post("/huggingface-to-pvc")
+async def ingest_huggingface(request: Request, huggingface_request: HuggingFaceDownloadRequest):
+    async def handle_huggingface_request():
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            executor,
+            process_huggingface_dataset,
+            huggingface_request.dataset_name,
+            huggingface_request.dataset_config,
+            huggingface_request.dataset_name_override,
+            huggingface_request.user_name,
+            huggingface_request.private
+        )
+        logger.info(f"Result from process_huggingface_dataset: {result}")
+    await request_queue.put((None, handle_huggingface_request))
+    return {"message": "Request added to queue"}
+
+@app.on_event("shutdown")
+async def shutdown():
+    executor.shutdown()
 
 @app.post("/kaggle-to-pvc")
-def ingest_kaggle(request: KaggleDownloadRequest):
-    return process_kaggle_dataset(request)
-
+async def ingest_kaggle(request: KaggleDownloadRequest):
+    await request_queue.put((request, process_kaggle_dataset))
+    return {"message": "Request added to queue"}
 
 @app.post("/openml-to-pvc")
-def ingest_openml(request: OpenMLDownloadRequest):
-    return process_openml_dataset(
-        dataset_id=request.dataset_id,
-        dataset_name=request.dataset_name,
-        user_name=request.user_name,
-        private=request.private,
-    )
-
+async def ingest_openml(request: OpenMLDownloadRequest):
+    await request_queue.put((request, process_openml_dataset))
+    return {"message": "Request added to queue"}
 
 @app.post("/s3-to-pvc")
-def ingest_s3(request: S3DownloadRequest):
+async def ingest_s3(request: S3DownloadRequest):
     s3_handler = S3Handler(
         access_key=request.access_key,
         secret_key=request.secret_key,
         endpoint_url=request.endpoint_url,
         bucket_name=request.bucket_name,
     )
-    return s3_handler.process_s3_dataset(
-        s3_file_path=request.s3_file_path,
-        dataset_name=request.dataset_name,
-        user_name=request.user_name,
-        private=request.private,
-    )
-
+    await request_queue.put((request, s3_handler.process_s3_dataset))
+    return {"message": "Request added to queue"}
 
 @app.post("/list-datasets")
-def list_datasets(request: ListDatasetsRequest):
+async def list_datasets(request: ListDatasetsRequest):
     try:
         datasets = []
         for metadata_file in storage_handler.metadata_dir.glob("*.json"):
@@ -82,9 +120,8 @@ def list_datasets(request: ListDatasetsRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list datasets: {e}")
 
-
 @app.post("/download-dataset")
-def download_dataset(request: DownloadDatasetRequest):
+async def download_dataset(request: DownloadDatasetRequest):
     try:
         metadata = storage_handler.load_metadata(request.dataset_id)
         if metadata.private and metadata.user_name != request.user_name:
@@ -99,3 +136,7 @@ def download_dataset(request: DownloadDatasetRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download failed: {e}")
+    
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=6990)
