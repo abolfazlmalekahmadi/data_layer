@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="data-platform",   # Your project/package name
+    name="ryn",   # Your project/package name
     version="0.1.0",
     packages=find_packages(include=["data", "data.*"]),
     install_requires=[

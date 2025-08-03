@@ -8,11 +8,9 @@ import logging
 from data.data_ingestion.models.metadata import DatasetMetadata
 
 logger = logging.getLogger(__name__)
-
-PVC_BASE_DIR = Path("PV_Datasets")
+PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
 METADATA_DIR = PVC_BASE_DIR / "metadata"
-TEMP_DIR = PVC_BASE_DIR / "temp"
-
+TEMP_DIR = PVC_BASE_DIR 
 
 class DatasetStorageHandler:
     def __init__(self):

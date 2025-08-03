@@ -1,0 +1,15 @@
+{
+    "dataset_id": "a0ed0405-a7a4-456d-bc23-c26854c95468",
+    "dataset_name": "akbr",
+    "dataset_config": null,
+    "last_commit": "68ba7694e23014788dcc8ab5afe613824f45a05c",
+    "last_modified": "2025-01-06T00:02:53+00:00",
+    "user_name": "ryn1",
+    "private": false,
+    "version": 0,
+    "temp": true,
+    "source": "huggingface",
+    "created_at": "2025-08-03T14:50:35.347100",
+    "file_path": "/home/user01/abolfazl/tools/data_platform/ryn/data/PV_Datasets/a0ed0405-a7a4-456d-bc23-c26854c95468/data",
+    "summary": "Hugging Face dataset with splits: ['train']"
+}

@@ -9,6 +9,8 @@ from datetime import datetime
 from data.data_ingestion.storage_handler import DatasetStorageHandler, TEMP_DIR
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.handlers.utils import summarize_dataset
+from data.data_ingestion.handlers.conditions import DatasetConditionChecker
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +45,16 @@ class S3Handler:
 
     def process_s3_dataset(self, s3_file_path: str, dataset_name: str, user_name: str, private: bool) -> dict:
         try:
+            storage_handler = DatasetStorageHandler()  # This will call __init__ and create directories
+
             with tempfile.TemporaryDirectory(dir=TEMP_DIR) as temp_dir:
+
                 temp_path = Path(temp_dir)
                 logger.info(f"Created temporary directory for S3 download: {temp_path}")
                 local_file = temp_path / Path(s3_file_path).name
                 self.download_file(s3_file_path, local_file)
 
-                dataset_id = self.storage_handler.generate_dataset_id()
+                dataset_id = storage_handler.generate_dataset_id()
                 metadata = DatasetMetadata(
                     dataset_id=dataset_id,
                     dataset_name=dataset_name or local_file.stem,

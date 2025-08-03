@@ -18,6 +18,7 @@ def process_kaggle_dataset(request: KaggleDownloadRequest) -> dict:
     original_kaggle_key = os.environ.get("KAGGLE_KEY")
 
     try:
+        storage_handler = DatasetStorageHandler()  # This will call __init__ and create directories
         if request.kaggle_username and request.kaggle_key:
             logger.info("Using Kaggle credentials from request.")
             os.environ["KAGGLE_USERNAME"] = request.kaggle_username

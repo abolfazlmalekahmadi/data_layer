@@ -1,0 +1,15 @@
+{
+    "dataset_id": "c875f4a2-2dba-4c62-be7f-a61610fe1876",
+    "dataset_name": "credit-g",
+    "dataset_config": null,
+    "last_commit": null,
+    "last_modified": null,
+    "user_name": "ryn",
+    "private": false,
+    "version": 0,
+    "temp": true,
+    "source": "s3",
+    "created_at": "2025-08-03T16:01:11.706930",
+    "file_path": "/home/user01/abolfazl/tools/data_platform/ryn/data/PV_Datasets/c875f4a2-2dba-4c62-be7f-a61610fe1876/classification_cat_dog.zip",
+    "summary": "File: classification_cat_dog.zip"
+}

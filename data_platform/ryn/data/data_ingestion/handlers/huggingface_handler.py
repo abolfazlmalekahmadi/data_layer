@@ -5,8 +5,6 @@ from datetime import datetime
 from fastapi import HTTPException
 import tempfile
 import logging
-
-# These imports assume the SDK structure as described
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.handlers.utils import summarize_dataset
 from data.data_ingestion.handlers.conditions import DatasetConditionChecker
@@ -15,12 +13,18 @@ from data.data_ingestion.storage_handler import DatasetStorageHandler
 logger = logging.getLogger(__name__)
 
 class HuggingFaceHandler:
-    def process(self, dataset_name: str, dataset_config: str, dataset_name_override: str, user_name: str, private: bool) -> dict:
+    def process(self, dataset_name: str, dataset_config: str , dataset_name_override: str, user_name: str, private: bool) -> dict  :
         """
         Download a Hugging Face dataset, persist it, and return metadata.
         """
         try:
-            DatasetConditionChecker().check_huggingface_size(dataset_name, dataset_config)
+            storage_handler = DatasetStorageHandler()  # This will call __init__ and create directories
+            try:
+                DatasetConditionChecker().check_huggingface_size(dataset_name, dataset_config)
+            except ValueError as size_error:
+                logger.error(f"Dataset size check failed for '{dataset_name}': {size_error}")
+                raise HTTPException(status_code=400, detail=f"Dataset size check failed: {size_error}")
+
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
                 logger.info(f"Temporary directory created: {temp_path}")
@@ -31,7 +35,6 @@ class HuggingFaceHandler:
                 local_dataset_dir = temp_path / "huggingface_dataset"
                 ds.save_to_disk(str(local_dataset_dir))
 
-                storage_handler = DatasetStorageHandler()
                 ds_id = storage_handler.generate_dataset_id()
                 metadata = DatasetMetadata(
                     dataset_id=ds_id,
@@ -59,7 +62,7 @@ class HuggingFaceHandler:
             logger.error(f"Error processing Hugging Face dataset '{dataset_name}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Error with Hugging Face dataset: {e}")
 
-def process_huggingface_dataset(dataset_name, dataset_config, dataset_name_override, user_name, private):
+def process_huggingface_dataset(dataset_name, dataset_config , dataset_name_override, user_name, private):
     return HuggingFaceHandler().process(
         dataset_name=dataset_name,
         dataset_config=dataset_config,
