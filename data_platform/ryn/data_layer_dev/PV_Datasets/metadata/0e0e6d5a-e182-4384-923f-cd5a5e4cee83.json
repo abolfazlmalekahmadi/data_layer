@@ -1,0 +1,12 @@
+{
+    "dataset_id": "0e0e6d5a-e182-4384-923f-cd5a5e4cee83",
+    "dataset_name": "mahdi",
+    "user_name": "mahdi",
+    "private": false,
+    "version": 0,
+    "temp": true,
+    "source": "huggingface",
+    "created_at": "2025-07-30T15:27:25.321525",
+    "file_path": "PV_Datasets/0e0e6d5a-e182-4384-923f-cd5a5e4cee83/data",
+    "summary": "Hugging Face dataset with splits: ['train']"
+}

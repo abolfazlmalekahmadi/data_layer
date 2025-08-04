@@ -1,0 +1,12 @@
+{
+    "dataset_id": "5914b5e2-7a41-418d-8c6e-503751c3a2a8",
+    "dataset_name": "mahdi",
+    "user_name": "mahdi",
+    "private": false,
+    "version": 0,
+    "temp": true,
+    "source": "huggingface",
+    "created_at": "2025-07-30T15:55:30.030692",
+    "file_path": "PV_Datasets/5914b5e2-7a41-418d-8c6e-503751c3a2a8/data",
+    "summary": "Hugging Face dataset with splits: ['test']"
+}

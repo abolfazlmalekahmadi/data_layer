@@ -1,0 +1,15 @@
+{
+    "dataset_id": "065c95c9-8484-4211-bb90-31b3736b12d1",
+    "dataset_name": "fka/awesome-chatgpt-prompts",
+    "dataset_config": null,
+    "last_commit": "68ba7694e23014788dcc8ab5afe613824f45a05c",
+    "last_modified": "2025-01-06T00:02:53+00:00",
+    "user_name": "Ali",
+    "private": false,
+    "version": 0,
+    "temp": true,
+    "source": "huggingface",
+    "created_at": "2025-08-04T12:20:43.077617",
+    "file_path": "/home/mahdi/tools/data_platform/ryn/data/PV_Datasets/065c95c9-8484-4211-bb90-31b3736b12d1/data",
+    "summary": "Hugging Face dataset with splits: ['train']"
+}

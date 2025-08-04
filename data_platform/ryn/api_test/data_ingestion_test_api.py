@@ -53,7 +53,7 @@ async def process_queue():
 # Start the queue worker in the background
 @app.on_event("startup")
 async def startup():
-    num_workers = 20
+    num_workers = 5
     for _ in range(num_workers):
         asyncio.create_task(process_queue())
         
@@ -63,7 +63,7 @@ def health_check():
 
 executor = ProcessPoolExecutor(max_workers=4)
 
-@app.post("/huggingface-to-pvc")
+@app.post("/huggingface")
 async def ingest_huggingface(request: Request, huggingface_request: HuggingFaceDownloadRequest):
     async def handle_huggingface_request():
         loop = asyncio.get_running_loop()
@@ -84,25 +84,58 @@ async def ingest_huggingface(request: Request, huggingface_request: HuggingFaceD
 async def shutdown():
     executor.shutdown()
 
-@app.post("/kaggle-to-pvc")
+@app.post("/kaggle")
 async def ingest_kaggle(request: KaggleDownloadRequest):
-    await request_queue.put((request, process_kaggle_dataset))
+    async def handle_kaggle_request():
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            executor,
+            process_kaggle_dataset,
+            request.dataset_id,
+            request.user_name,
+            request.kaggle_username,
+            request.kaggle_key,
+            request.private
+        )
+        logger.info(f"Result from process_kaggle_dataset: {result}")
+    await request_queue.put((None, handle_kaggle_request))
     return {"message": "Request added to queue"}
 
-@app.post("/openml-to-pvc")
+@app.post("/openml")
 async def ingest_openml(request: OpenMLDownloadRequest):
-    await request_queue.put((request, process_openml_dataset))
+    async def handle_openml_request():
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            executor,
+            process_openml_dataset,
+            request.dataset_id,
+            request.user_name,
+            request.private
+        )
+        logger.info(f"Result from process_openml_dataset: {result}")
+    await request_queue.put((None, handle_openml_request))
     return {"message": "Request added to queue"}
 
-@app.post("/s3-to-pvc")
+@app.post("/s3")
 async def ingest_s3(request: S3DownloadRequest):
-    s3_handler = S3Handler(
-        access_key=request.access_key,
-        secret_key=request.secret_key,
-        endpoint_url=request.endpoint_url,
-        bucket_name=request.bucket_name,
-    )
-    await request_queue.put((request, s3_handler.process_s3_dataset))
+    async def handle_s3_request():
+        loop = asyncio.get_running_loop()
+        s3_handler = S3Handler(
+            access_key=request.access_key,
+            secret_key=request.secret_key,
+            endpoint_url=request.endpoint_url,
+            bucket_name=request.bucket_name,
+        )
+        result = await loop.run_in_executor(
+            executor,
+            s3_handler.process_s3_dataset,
+            request.s3_file_path,
+            request.dataset_name,
+            request.user_name,
+            request.private
+        )
+        logger.info(f"Result from process_s3_dataset: {result}")
+    await request_queue.put((None, handle_s3_request))
     return {"message": "Request added to queue"}
 
 @app.post("/list-datasets")
@@ -139,4 +172,4 @@ async def download_dataset(request: DownloadDatasetRequest):
     
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=6990)
+    uvicorn.run(app, host="0.0.0.0", port=6992)
