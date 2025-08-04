@@ -16,8 +16,8 @@ async def main():
     # }
     url = "http://127.0.0.1:6992/openml"
     payload = {
-        "dataset_name": None,
-        "dataset_id": '31',
+        "dataset_name": "daaaaa",
+        "dataset_id": 31,
         "user_name": "Alis",
         "private": False
     }

@@ -109,6 +109,7 @@ async def ingest_openml(request: OpenMLDownloadRequest):
             executor,
             process_openml_dataset,
             request.dataset_id,
+            request.dataset_name,
             request.user_name,
             request.private
         )
