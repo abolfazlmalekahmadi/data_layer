@@ -118,26 +118,30 @@ async def ingest_openml(request: OpenMLDownloadRequest):
     return {"message": "Request added to queue"}
 
 @app.post("/s3")
-async def ingest_s3(request: S3DownloadRequest):
+async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
+    raw_body = await request.body()
+    logger.info(f"Raw request body: {raw_body}")
+    s3_handler = S3Handler(
+        access_key=s3_request.access_key,
+        secret_key=s3_request.secret_key,
+        endpoint_url=s3_request.endpoint_url,
+        bucket_name=s3_request.bucket_name,
+    )
     async def handle_s3_request():
         loop = asyncio.get_running_loop()
-        s3_handler = S3Handler(
-            access_key=request.access_key,
-            secret_key=request.secret_key,
-            endpoint_url=request.endpoint_url,
-            bucket_name=request.bucket_name,
-        )
         result = await loop.run_in_executor(
             executor,
             s3_handler.process_s3_dataset,
-            request.s3_file_path,
-            request.dataset_name,
-            request.user_name,
-            request.private
+            s3_request.s3_file_path,
+            s3_request.dataset_name,
+            s3_request.user_name,
+            s3_request.private
         )
         logger.info(f"Result from process_s3_dataset: {result}")
     await request_queue.put((None, handle_s3_request))
     return {"message": "Request added to queue"}
+
+
 
 @app.post("/list-datasets")
 async def list_datasets(request: ListDatasetsRequest):

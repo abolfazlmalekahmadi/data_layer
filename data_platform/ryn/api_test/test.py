@@ -14,13 +14,26 @@ async def main():
     #     "user_name": "Ali",
     #     "private": False
     # }
-    url = "http://127.0.0.1:6992/openml"
+    # url = "http://127.0.0.1:6992/openml"
+    # payload = {
+    #     "dataset_name": "daaaaa",
+    #     "dataset_id": 31,
+    #     "user_name": "Alis",
+    #     "private": False
+    # }
+    
+    url = "http://127.0.0.1:6992/s3"
     payload = {
-        "dataset_name": "daaaaa",
-        "dataset_id": 31,
-        "user_name": "Alis",
-        "private": False
+        'access_key' : "OAF0MC26UA7DV9WS11X5",
+        'secret_key' :"6SY2dTxhcIVEsjbfpjRUBhe3k7mMJIjZpccwvw3d",
+        'endpoint_url':"https://s3.cloud-ai.ir",
+        'bucket_name':"mlops",
+        's3_file_path':"classification_cat_dog.zip",
+        'dataset_name':"credit-g",
+        'user_name' :"ryn",
+        'private': False
     }
+    
     async with aiohttp.ClientSession() as session:
         tasks = [send_request(session, url, payload) for _ in range(10)]
         responses = await asyncio.gather(*tasks)
