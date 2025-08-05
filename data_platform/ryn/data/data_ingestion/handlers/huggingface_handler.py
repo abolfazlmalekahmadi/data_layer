@@ -13,7 +13,7 @@ from data.data_ingestion.storage_handler import DatasetStorageHandler
 logger = logging.getLogger(__name__)
 
 class HuggingFaceHandler:
-    def process(self, dataset_name: str, dataset_config: str , dataset_name_override: str, user_name: str, private: bool) -> dict  :
+    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool , dataset_tag :str) -> dict  :
         """
         Download a Hugging Face dataset, persist it, and return metadata.
         """
@@ -38,12 +38,13 @@ class HuggingFaceHandler:
                 ds_id = storage_handler.generate_dataset_id()
                 metadata = DatasetMetadata(
                     dataset_id=ds_id,
-                    dataset_name=dataset_name_override or dataset_name.replace('/', '_'),
+                    dataset_name= dataset_name.replace('/', '_'),
                     dataset_config=dataset_config,
                     last_commit=info.sha,
                     last_modified=info.last_modified.isoformat(),
                     user_name=user_name,
                     private=private,
+                    dataset_tag = dataset_tag,
                     source="huggingface",
                     created_at=datetime.now().isoformat(),
                     file_path="",
@@ -62,11 +63,11 @@ class HuggingFaceHandler:
             logger.error(f"Error processing Hugging Face dataset '{dataset_name}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Error with Hugging Face dataset: {e}")
 
-def process_huggingface_dataset(dataset_name, dataset_config , dataset_name_override, user_name, private):
+def process_huggingface_dataset(dataset_name, dataset_config , user_name, private , dataset_tag):
     return HuggingFaceHandler().process(
         dataset_name=dataset_name,
         dataset_config=dataset_config,
-        dataset_name_override=dataset_name_override,
         user_name=user_name,
         private=private,
+        dataset_tag = dataset_tag
     )

@@ -72,9 +72,10 @@ async def ingest_huggingface(request: Request, huggingface_request: HuggingFaceD
             process_huggingface_dataset,
             huggingface_request.dataset_name,
             huggingface_request.dataset_config,
-            huggingface_request.dataset_name_override,
             huggingface_request.user_name,
-            huggingface_request.private
+            huggingface_request.private,
+            huggingface_request.dataset_tag,
+            
         )
         logger.info(f"Result from process_huggingface_dataset: {result}")
     await request_queue.put((None, handle_huggingface_request))
@@ -177,4 +178,4 @@ async def download_dataset(request: DownloadDatasetRequest):
     
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=9085)
+    uvicorn.run(app, host="0.0.0.0", port=7070)

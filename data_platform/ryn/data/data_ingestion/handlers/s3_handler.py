@@ -38,7 +38,7 @@ class S3Handler:
             logger.error(f"S3 download failed for '{remote_path}' in bucket '{self.bucket_name}': {e}")
             raise HTTPException(status_code=500, detail=f"S3 download error: {e}")
 
-    def process_s3_dataset(self, s3_file_path: str, dataset_name: str, user_name: str, private: bool) -> dict:
+    def process_s3_dataset(self, s3_file_path: str, dataset_name: str, user_name: str, private: bool , dataset_tag : str) -> dict:
         try:
             # Create S3 client inside the method
             DatasetConditionChecker().check_s3_size(
@@ -72,7 +72,8 @@ class S3Handler:
                     source="s3",
                     created_at=datetime.now().isoformat(),
                     file_path="",
-                    summary=summarize_dataset(local_file)
+                    summary=summarize_dataset(local_file),
+                    dataset_tag = dataset_tag
                 )
                 stored_path = self.storage_handler.store_dataset(local_file, metadata)
                 return {

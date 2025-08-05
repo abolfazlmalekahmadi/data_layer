@@ -12,7 +12,7 @@ from data.data_ingestion.handlers.conditions import DatasetConditionChecker
 from data.data_ingestion.handlers.utils import summarize_dataset
 
 logger = logging.getLogger(__name__)
-def process_openml_dataset(dataset_id: int, dataset_name: str, user_name: str, private: bool) -> dict:
+def process_openml_dataset(dataset_id: int, dataset_name: str, user_name: str, private: bool , dataset_tag : str) -> dict:
     try:
         storage_handler = DatasetStorageHandler()
 
@@ -66,7 +66,8 @@ def process_openml_dataset(dataset_id: int, dataset_name: str, user_name: str, p
                 source="openml",
                 created_at=datetime.now().isoformat(),
                 file_path="",
-                summary=summarize_dataset(local_path)
+                summary=summarize_dataset(local_path),
+                dataset_tag = dataset_tag
             )
 
             stored_path = storage_handler.store_dataset(local_path, metadata)

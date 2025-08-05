@@ -23,8 +23,8 @@ class KaggleDownloadRequest(BaseModel):
 
 class HuggingFaceDownloadRequest(BaseModel):
     dataset_name: str
-    dataset_config: Optional[str] = None
-    dataset_name_override: Optional[str] = None
+    dataset_config: Optional[str] = "default"
+    # dataset_name_override: Optional[str] = None
     user_name: str
     private: bool = False
     dataset_tag : str
