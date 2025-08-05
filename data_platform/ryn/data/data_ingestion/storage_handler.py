@@ -6,17 +6,34 @@ from pathlib import Path
 from fastapi import HTTPException
 import logging
 from data.data_ingestion.models.metadata import DatasetMetadata
+from data.data_ingestion.lakefs.lakefs_handler import lakefs_handler
+import subprocess
 
 logger = logging.getLogger(__name__)
 PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
 METADATA_DIR = PVC_BASE_DIR / "metadata"
 TEMP_DIR = PVC_BASE_DIR 
-
+ACCESS_KEY="AKIAJYO3GANY5GC44BUQ"
+SECRET_KEY="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"
 class DatasetStorageHandler:
+    
     def __init__(self):
-        self.base_dir = PVC_BASE_DIR
         self.metadata_dir = METADATA_DIR
         self.temp_dir = TEMP_DIR
+        self.access_key=ACCESS_KEY
+        self.secret_key=SECRET_KEY
+    def generate_dataset_id(self) -> str:
+        return str(uuid.uuid4())
+
+    def store_dataset(self, source_path: Path, metadata: DatasetMetadata) -> str:
+        print(metadata.dataset_name)
+        self.mount_point = Path(f"/mnt/s3/{metadata.dataset_name}")
+        self.base_dir = self.mount_point / "main"
+        self.metadata_dir = self.base_dir / "metadata"
+        self.temp_dir = self.mount_point / "main"
+        # create_repo()
+        lakefs_clt = lakefs_handler(metadata.dataset_name,self.access_key,self.secret_key)
+        lakefs_clt.mount_repo(str(self.mount_point))
         try:
             self.base_dir.mkdir(parents=True, exist_ok=True)
             self.metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -25,11 +42,7 @@ class DatasetStorageHandler:
         except OSError as e:
             logger.critical(f"CRITICAL: Could not create base directories: {e}")
 
-    def generate_dataset_id(self) -> str:
-        return str(uuid.uuid4())
-
-    def store_dataset(self, source_path: Path, metadata: DatasetMetadata) -> str:
-        dataset_dir = self.base_dir / metadata.dataset_id
+        dataset_dir = self.base_dir / metadata.dataset_name
         try:
             dataset_dir.mkdir(exist_ok=True)
             if source_path.is_dir():
@@ -44,8 +57,11 @@ class DatasetStorageHandler:
                 raise FileNotFoundError(f"Source path {source_path} does not exist or is not a file/directory.")
 
             metadata.file_path = str(stored_path)
+            # raise ValueError(metadata)
             self.save_metadata(metadata)
             logger.info(f"Dataset {metadata.dataset_id} stored at {stored_path}")
+            result = subprocess.run([f"fusermount","-u",str(self.mount_point)], check=True, capture_output=True, text=True)
+
             return str(stored_path)
 
         except (IOError, OSError, FileNotFoundError) as e:
@@ -55,6 +71,7 @@ class DatasetStorageHandler:
             raise HTTPException(status_code=500, detail=f"Error storing dataset file: {e}")
 
     def save_metadata(self, metadata: DatasetMetadata):
+
         metadata_file = self.metadata_dir / f"{metadata.dataset_id}.json"
         try:
             with open(metadata_file, 'w') as f:
