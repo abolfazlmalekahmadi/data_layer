@@ -112,11 +112,13 @@ class DatasetStorageHandler:
                 dataset_path=metadata.dataset_name
             )
 
-            # dataset.set_
+            # Note :
+            # No need to add the following because we added the metadata in the previous steps
+            
             # Also attach metadata JSON
-            metadata_json_path = self.metadata_dir / f"{metadata.dataset_id}.json"
-            if metadata_json_path.exists():
-                dataset.add_files(path=str(metadata_json_path))
+            # metadata_json_path = self.metadata_dir / f"{metadata.dataset_id}.json"
+            # if metadata_json_path.exists():
+            #     dataset.add_files(path=str(metadata_json_path))
 
             dataset.upload()
             dataset.finalize()
