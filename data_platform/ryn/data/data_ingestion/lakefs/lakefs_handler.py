@@ -105,7 +105,7 @@ class lakefs_handler:
         # Command to run
         cmd = [
             "bash",
-            "mount_s3.sh",
+            "/mnt/s3/mount_s3.sh",
             self.access_key,
             self.secret_key,
             self.name,

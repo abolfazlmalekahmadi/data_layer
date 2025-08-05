@@ -38,7 +38,7 @@ class HuggingFaceHandler:
                 ds_id = storage_handler.generate_dataset_id()
                 metadata = DatasetMetadata(
                     dataset_id=ds_id,
-                    dataset_name= dataset_name.replace('/', '_'),
+                    dataset_name= dataset_name.replace('/', '-'),
                     dataset_config=dataset_config,
                     last_commit=info.sha,
                     last_modified=info.last_modified.isoformat(),
