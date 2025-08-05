@@ -3,7 +3,7 @@ from requests.auth import HTTPBasicAuth
 import subprocess
 
 class lakefs_handler:
-    def __init__(self,name,access_key,secret_key,lakefs_url="http://localhost:8001"):
+    def __init__(self,name,access_key,secret_key,lakefs_url="my-lakefs.default.svc.cluster.local:80"):
         
         self.name=name
         self.access_key=access_key

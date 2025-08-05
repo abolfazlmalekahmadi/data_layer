@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
 METADATA_DIR = PVC_BASE_DIR / "metadata"
 TEMP_DIR = PVC_BASE_DIR 
-ACCESS_KEY="AKIAJYO3GANY5GC44BUQ"
-SECRET_KEY="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"
+# LAKEFS_ACCESS_KEY="AKIAJYO3GANY5GC44BUQ"
+# SECRET_KEY="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"
 class DatasetStorageHandler:
     
     def __init__(self):
         self.metadata_dir = METADATA_DIR
         self.temp_dir = TEMP_DIR
-        self.access_key=ACCESS_KEY
-        self.secret_key=SECRET_KEY
+        self.access_key=os.getenv("LAKEFS_ACCESS_KEY")
+        self.secret_key=os.getenv("LAKEFS_SECRET_KEY")
     def generate_dataset_id(self) -> str:
         return str(uuid.uuid4())
 
