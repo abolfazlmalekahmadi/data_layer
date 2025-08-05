@@ -8,6 +8,7 @@ import logging
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.lakefs.lakefs_handler import lakefs_handler
 import subprocess
+from clearml import Dataset as ClearMLDataset
 
 logger = logging.getLogger(__name__)
 PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
@@ -60,6 +61,9 @@ class DatasetStorageHandler:
             # raise ValueError(metadata)
             self.save_metadata(metadata)
             logger.info(f"Dataset {metadata.dataset_id} stored at {stored_path}")
+            
+            clearml_path = f"s3://{metadata.dataset_name}/main"
+            self.register_with_clearml(metadata, clearml_path)
             result = subprocess.run([f"fusermount","-u",str(self.mount_point)], check=True, capture_output=True, text=True)
 
             return str(stored_path)
@@ -91,3 +95,32 @@ class DatasetStorageHandler:
         except Exception as e:
             logger.error(f"Failed to load metadata for {dataset_id}: {e}")
             raise HTTPException(status_code=500, detail="Error reading dataset metadata.")
+        
+        
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: Path):
+        try:
+            dataset = ClearMLDataset.create(
+                dataset_name=metadata.dataset_name,
+                dataset_project="importing",
+                # dataset_tags=[metadata.dataset_type] if metadata.dataset_type else [],
+                description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
+            )
+
+            
+            dataset.add_external_files(
+                source_url=stored_path,
+                dataset_path=metadata.dataset_name
+            )
+
+
+            # Also attach metadata JSON
+            metadata_json_path = self.metadata_dir / f"{metadata.dataset_id}.json"
+            if metadata_json_path.exists():
+                dataset.add_files(path=str(metadata_json_path))
+
+            dataset.upload()
+            dataset.finalize()
+
+            logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
+        except Exception as e:
+            logger.error(f"Failed to register dataset with ClearML: {e}")
