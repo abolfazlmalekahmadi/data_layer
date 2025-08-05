@@ -83,14 +83,6 @@ def download_dataset(source: str, **kwargs):
             endpoint_url=kwargs["endpoint_url"],
             bucket_name=kwargs["bucket_name"]
         )
-        # Call process_s3_dataset with the necessary arguments
-        DatasetConditionChecker().check_s3_size(
-                    access_key=kwargs["access_key"],
-                    secret_key=kwargs["secret_key"],
-                    endpoint_url=kwargs["endpoint_url"],
-                    bucket_name=kwargs["bucket_name"],
-                    s3_path=kwargs["s3_file_path"]
-                )
         
         return s3_handler.process_s3_dataset(
             kwargs["s3_file_path"], kwargs["dataset_name"], kwargs["user_name"], kwargs["private"]

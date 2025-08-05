@@ -9,6 +9,7 @@ import boto3
 from data.data_ingestion.storage_handler import DatasetStorageHandler, TEMP_DIR
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.handlers.utils import summarize_dataset
+from data.data_ingestion.handlers.conditions import DatasetConditionChecker
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,11 @@ class S3Handler:
             raise HTTPException(status_code=503, detail="S3 service is not available.")
         try:
             local_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                s3_client.head_object(Bucket=self.bucket_name, Key=remote_path)  
+            except s3_client.exceptions.NoSuchKey:
+                raise ValueError(f"The file or folder '{remote_path}' does not exist in the S3 bucket '{self.bucket_name}'.")
+            
             s3_client.download_file(self.bucket_name, remote_path, str(local_path))
             logger.info(f"S3 Download: '{remote_path}' -> '{local_path}' (bucket='{self.bucket_name}')")
         except Exception as e:
@@ -35,6 +41,13 @@ class S3Handler:
     def process_s3_dataset(self, s3_file_path: str, dataset_name: str, user_name: str, private: bool) -> dict:
         try:
             # Create S3 client inside the method
+            DatasetConditionChecker().check_s3_size(
+                    access_key=self.access_key,
+                    secret_key=self.secret_key,
+                    endpoint_url=self.endpoint_url,
+                    bucket_name=self.bucket_name,
+                    s3_path=s3_file_path
+                )
             s3_client = boto3.client(
                 "s3",
                 aws_access_key_id=self.access_key,

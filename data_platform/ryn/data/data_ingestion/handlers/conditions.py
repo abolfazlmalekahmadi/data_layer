@@ -97,7 +97,7 @@ class DatasetConditionChecker:
             )
         if not bucket_name:
             raise HTTPException(status_code=400, detail="S3 bucket name cannot be empty")
-
+  
         try:
             s3 = boto3.client(
                 's3',
@@ -105,6 +105,13 @@ class DatasetConditionChecker:
                 aws_secret_access_key=secret_key,
                 endpoint_url=endpoint_url,
             )
+            
+            # try:
+            #     s3.head_object(Bucket=bucket_name, Key=s3_path)  
+            # except s3.exceptions.NoSuchKey:
+            #     raise ValueError(f"The file or folder '{s3_path}' does not exist in the S3 bucket '{self.bucket_name}'.")
+        
+
             total_size = 0
             paginator = s3.get_paginator('list_objects_v2')
             pages = paginator.paginate(Bucket=bucket_name, Prefix=s3_path)
