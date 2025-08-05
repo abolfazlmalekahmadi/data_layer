@@ -85,7 +85,7 @@ def download_dataset(source: str, **kwargs):
         )
         
         return s3_handler.process_s3_dataset(
-            kwargs["s3_file_path"], kwargs["dataset_name"], kwargs["user_name"], kwargs["private"]
+            kwargs["s3_file_path"], kwargs["dataset_name"], kwargs["user_name"], kwargs["private"], kwargs["dataset_tag"]
         )
     else:
         raise ValueError(f"Unsupported source '{source}'. Supported sources are: huggingface, kaggle, openml, s3.")
