@@ -177,4 +177,4 @@ async def download_dataset(request: DownloadDatasetRequest):
     
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=6992)
+    uvicorn.run(app, host="0.0.0.0", port=7002)
