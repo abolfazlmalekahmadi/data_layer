@@ -22,7 +22,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-storage_handler = DatasetStorageHandler()
 
 # Create a queue to handle the requests
 request_queue = asyncio.Queue()
@@ -147,6 +146,7 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
 @app.post("/list-datasets")
 async def list_datasets(request: ListDatasetsRequest):
     try:
+        storage_handler = DatasetStorageHandler("temp_mount")
         datasets = []
         for metadata_file in storage_handler.metadata_dir.glob("*.json"):
             metadata = storage_handler.load_metadata(metadata_file.stem)
@@ -158,10 +158,13 @@ async def list_datasets(request: ListDatasetsRequest):
         return datasets
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list datasets: {e}")
+    finally:
+        storage_handler.unmount()
 
 @app.post("/download-dataset")
 async def download_dataset(request: DownloadDatasetRequest):
     try:
+        storage_handler = DatasetStorageHandler("temp_mount")  # Temporary mount for download
         metadata = storage_handler.load_metadata(request.dataset_id)
         if metadata.private and metadata.user_name != request.user_name:
             raise HTTPException(status_code=403, detail="Access denied.")
@@ -175,6 +178,8 @@ async def download_dataset(request: DownloadDatasetRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download failed: {e}")
+    finally:
+        storage_handler.unmount()
     
 if __name__ == "__main__":
     import uvicorn

@@ -22,17 +22,17 @@ async def main():
     #     "private": False
     # }
     
-    url = "http://127.0.0.1:6992/s3"
-    payload = {
-        'access_key' : "OAF0MC26UA7DV9WS11X5",
-        'secret_key' :"6SY2dTxhcIVEsjbfpjRUBhe3k7mMJIjZpccwvw3d",
-        'endpoint_url':"https://s3.cloud-ai.ir",
-        'bucket_name':"mlops",
-        's3_file_path':"classification_cat_dog.zip",
-        'dataset_name':"credit-g",
-        'user_name' :"ryn",
-        'private': False
-    }
+    # url = "http://127.0.0.1:6992/s3"
+    # payload = {
+    #     'access_key' : "OAF0MC26UA7DV9WS11X5",
+    #     'secret_key' :"6SY2dTxhcIVEsjbfpjRUBhe3k7mMJIjZpccwvw3d",
+    #     'endpoint_url':"https://s3.cloud-ai.ir",
+    #     'bucket_name':"mlops",
+    #     's3_file_path':"classification_cat_dog.zip",
+    #     'dataset_name':"credit-g",
+    #     'user_name' :"ryn",
+    #     'private': False
+    # }
     
     async with aiohttp.ClientSession() as session:
         tasks = [send_request(session, url, payload) for _ in range(10)]
