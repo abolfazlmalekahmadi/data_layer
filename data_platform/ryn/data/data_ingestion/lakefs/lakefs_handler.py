@@ -3,7 +3,7 @@ from requests.auth import HTTPBasicAuth
 import subprocess
 
 class lakefs_handler:
-    def __init__(self,name,access_key,secret_key,lakefs_url="my-lakefs.default.svc.cluster.local:80"):
+    def __init__(self,name,access_key,secret_key,lakefs_url="http://my-lakefs.default.svc.cluster.local:80"):
         
         self.name=name
         self.access_key=access_key
@@ -18,7 +18,7 @@ class lakefs_handler:
     def create_repo(self):
         repo_config = {
             "name": self.name,
-            "storage_namespace": f"s3://mlops/vm-test/{self.name}",
+            "storage_namespace": f"s3://mlops/k8s-test/{self.name}",
             "default_branch": "main"
         }
 

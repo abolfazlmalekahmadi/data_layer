@@ -1,5 +1,5 @@
 # Use a lightweight Python base image
-FROM python:3.11
+FROM proxy.ai-lab.ir/mlops/python:data-ingestion
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -8,6 +8,8 @@ WORKDIR /app
 # This command ensures the file exists when the container starts
 
 # Copy the requirements file and install dependencies
+RUN apt update -y
+RUN apt install s3fs -y
 COPY ryn/ .
 RUN echo "[global]" > /etc/pip.conf
 RUN echo "index-url = https://mirror-pypi.runflare.com/simple/" >> /etc/pip.conf
@@ -17,6 +19,9 @@ RUN pip install clearml clearml-serving
 RUN pip install uvicorn
 ENV LAKEFS_ACCESS_KEY="AKIAJW35UUDJP54623UQ"
 ENV LAKEFS_SECRET_KEY="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"
+ENV AWS_ACCESS_KEY_ID="AKIAJW35UUDJP54623UQ"
+ENV AWS_SECRET_ACCESS_KEY="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"
+ENV AWS_ENDPOINT_URL="http://my-lakefs.default.svc.cluster.local:80"
 RUN mkdir -p /mnt/s3
 COPY ryn/api_test/mount_s3.sh /mnt/s3/
 COPY clearml.conf /root
