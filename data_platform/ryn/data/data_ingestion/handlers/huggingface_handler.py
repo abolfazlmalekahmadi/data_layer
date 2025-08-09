@@ -66,6 +66,9 @@ class HuggingFaceHandler:
             raise HTTPException(status_code=500, detail=f"Error with Hugging Face dataset: {e}")
 
         finally:
+            ds.cleanup_cache_files()  # optional, cleans temporary files
+            del ds
+            import gc; gc.collect()
             storage_handler.unmount()
             
 def process_huggingface_dataset(dataset_name, dataset_config , user_name, private , dataset_tag):
