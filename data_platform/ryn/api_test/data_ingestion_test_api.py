@@ -63,20 +63,27 @@ def health_check():
 executor = ProcessPoolExecutor(max_workers=4)
 
 @app.post("/huggingface")
-async def ingest_huggingface(request: Request, huggingface_request: HuggingFaceDownloadRequest):
+async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
     async def handle_huggingface_request():
         loop = asyncio.get_running_loop()
+        s3_config = {
+            "endpoint_url": hf_req.endpoint_url,
+            "access_key": hf_req.access_key,
+            "secret_key": hf_req.secret_key,
+            "bucket_name": hf_req.bucket_name,
+        }
         result = await loop.run_in_executor(
             executor,
             process_huggingface_dataset,
-            huggingface_request.dataset_name,
-            huggingface_request.dataset_config,
-            huggingface_request.user_name,
-            huggingface_request.private,
-            huggingface_request.dataset_tag,
-            
+            hf_req.dataset_name,
+            hf_req.dataset_config,
+            hf_req.user_name,
+            hf_req.private,
+            hf_req.dataset_tag,
+            s3_config
         )
         logger.info(f"Result from process_huggingface_dataset: {result}")
+
     await request_queue.put((None, handle_huggingface_request))
     return {"message": "Request added to queue"}
 
@@ -183,4 +190,4 @@ async def download_dataset(request: DownloadDatasetRequest):
     
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7070)
+    uvicorn.run(app, host="0.0.0.0", port=7074)

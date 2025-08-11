@@ -23,11 +23,14 @@ class KaggleDownloadRequest(BaseModel):
 
 class HuggingFaceDownloadRequest(BaseModel):
     dataset_name: str
-    dataset_config: Optional[str] = "default"
-    # dataset_name_override: Optional[str] = None
+    dataset_config: str | None = None
     user_name: str
     private: bool = False
-    dataset_tag : str
+    dataset_tag: str | None = None
+    endpoint_url: str
+    access_key: str
+    secret_key: str
+    bucket_name: str
 
 class OpenMLDownloadRequest(BaseModel):
     dataset_id: int
