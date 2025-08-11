@@ -21,6 +21,7 @@ TEMP_BASE_DIR = PVC_BASE_DIR / "temp"
 class DatasetStorageHandler:
     def __init__(self, dataset_name: str):
         self.dataset_name = dataset_name
+        self.main_dir = PVC_BASE_DIR / dataset_name
         self.base_dir = PVC_BASE_DIR / dataset_name / "main"
         self.metadata_dir = self.base_dir / "metadata"
         self.temp_dir = TEMP_BASE_DIR / dataset_name
@@ -77,15 +78,15 @@ class DatasetStorageHandler:
                     )
 
                     # bucket = s3_config.get("bucket")
-                    remote_path = f"{metadata.dataset_name}"
-                    manager.upload(str(stored_path), remote_path)
+                    remote_path = f"Datasets/{metadata.dataset_name}"
+                    manager.upload(str(self.main_dir), remote_path)
                     logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config["bucket_name"]}/{metadata.dataset_name}")
                 except Exception as e:
                     logger.error(f"Failed to upload dataset to S3: {e}")
                     print(traceback.print_exc())
 
             # register with ClearML (non-blocking ideally)
-            clearml_path = f"{s3_config["endpoint_url"]}/{s3_config["bucket_name"]}/{metadata.dataset_name}/"
+            clearml_path = f's3://{s3_config["bucket_name"]}/{remote_path}'
             self.register_with_clearml(metadata, clearml_path)
             return str(stored_path)
         except (IOError, OSError, FileNotFoundError) as e:
