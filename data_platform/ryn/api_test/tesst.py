@@ -1,19 +1,13 @@
-from clearml import Dataset as ClearMLDataset
-stored_path = "http://s3.cloud-ai.ir/"
-metadata = {
-    'dataset_name':"glue",
-    'dataset_id':"cda84caa-e9a2-4777-ba9e-70a7bbb2ff8d"
-}
-dataset = ClearMLDataset.create(
-    dataset_name=metadata["dataset_name"],
-    dataset_project="importing",
-    description=f"Dataset ID: {metadata["dataset_id"]}\nStored path: {stored_path}"
-)
-dataset.add_external_files(
-    source_url="s3://mlops/glue",
-    dataset_path="clearml-test"
-)
-dataset.upload()
-dataset.finalize()
+from clearml.backend_api.session.client import APIClient
 
-    # logger.error(f"Failed to register dataset with ClearML: {e}")
+client = APIClient()
+
+try:
+    # First check if it exists
+    resp = client.queues.get_all(name="dataset_ingestion")
+    if resp.queues:
+        print(f"Queue already exists with ID: {resp.queues[0].id}")
+    else:
+        print("Queue doesn't exist - you'll need to create it manually in the UI")
+except Exception as e:
+    print(f"Error checking queue: {e}")
