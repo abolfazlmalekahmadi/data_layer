@@ -67,6 +67,7 @@ class DatasetStorageHandler:
             self.save_metadata(metadata)
             logger.info(f"Dataset {metadata.dataset_id} stored at {stored_path}")
             
+            remote_path = "" # init
             if s3_config:
                 try:
                     from aipmodel.CephS3Manager import CephS3Manager
