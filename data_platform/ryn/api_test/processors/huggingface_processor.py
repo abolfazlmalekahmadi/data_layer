@@ -16,7 +16,7 @@ def main():
     
     # Get parameters from the task
     params = task.get_parameters_as_dict().get('General', {})
-    raise ValueError(f"Ali:{params}")
+    # raise ValueError(f"Ali:{params}")
     try:
         dataset_name = params.get("dataset_name")
         if not dataset_name:
