@@ -222,7 +222,7 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
         
         # Create ClearML task
         task = ClearMLTaskManager.create_task(
-            task_name=f"HuggingFace_{hf_req.dataset_name}",
+            task_name=f"HuggingFace_{hf_req.dataset_name.replace('/', '-')}",
             script_name="huggingface_processor.py",
             parameters=parameters
         )
