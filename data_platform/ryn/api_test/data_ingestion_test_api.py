@@ -50,7 +50,7 @@ class ClearMLTaskManager:
             repo="git@github.com:AIP-MLOPS/tools.git",
             branch="data_layer",
             working_directory="data_platform/ryn/",
-            packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy", "fastapi", "logging", "kagglehub", "aipmodel==0.2.28"],
+            packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy", "fastapi", "logging", "kagglehub", "python-dotenv", "aipmodel==0.2.28"],
             docker=None
         )
 
