@@ -15,11 +15,13 @@ def main():
         return
     
     # Get parameters from the task
-    params = task.get_parameters()
-    
+    params = task.get_parameters_as_dict().get('General', {})
+    raise ValueError(f"Ali:{params}")
     try:
-        # Extract parameters
         dataset_name = params.get("dataset_name")
+        if not dataset_name:
+            raise ValueError("Required parameter 'dataset_name' is missing from the task configuration.")
+        # Extract parameters
         dataset_config = params.get("dataset_config", "")
         user_name = params.get("user_name")
         private = params.get("private", False)

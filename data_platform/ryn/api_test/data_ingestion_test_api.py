@@ -46,16 +46,17 @@ class ClearMLTaskManager:
             project_name=CLEARML_PROJECT_NAME,
             task_name=full_task_name,
             task_type=Task.TaskTypes.data_processing,
-            script=script_name,
-            repo="",
-            branch="",
-            working_directory="",
-            packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy"],
+            script="data_platform/ryn/api_test/processors/" + script_name,
+            repo="git@github.com:AIP-MLOPS/tools.git",
+            branch="data_layer",
+            working_directory="data_platform/ryn/",
+            packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy", "fastapi", "logging", "kagglehub", "aipmodel==0.2.28"],
             docker=None
         )
 
-        for key, value in parameters.items():
-            task.set_parameter(key, value)
+        # for key, value in parameters.items():
+        #     task.set_parameter(key, value)
+        task.connect(parameters)
 
         logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
         return task
@@ -492,4 +493,4 @@ async def list_clearml_datasets(project_name: str = CLEARML_PROJECT_NAME):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7090)
+    uvicorn.run(app, host="0.0.0.0", port=7099)
