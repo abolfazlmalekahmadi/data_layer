@@ -9,6 +9,7 @@ from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.lakefs.lakefs_handler import lakefs_handler
 import subprocess
 from botocore.config import Config
+import boto3
 
 from clearml import Dataset as ClearMLDataset
 import traceback
