@@ -179,7 +179,8 @@ class DatasetStorageHandler:
             files = self.list_s3_files(s3_config, s3_config['bucket_name'], s3_remote_path)
             # for file in files:
             # dataset.add_external_files(source_url=files, dataset_path=".")
-            dataset.add_external_files(source_url=f"s3://{s3_config['bucket_name']}", dataset_path=f"{s3_remote_path}")
+            # dataset.add_external_files(source_url=f"s3://{s3_config['bucket_name']}", dataset_path=f"{s3_remote_path}")
+            dataset.add_external_files(source_url="s3://mlops/Datasets/zai-org-CC-Bench-trajectories/main/metadata/3a6eddc5-cb23-46ec-9e5d-51e1f4a4ba44.json", dataset_path="/my_dataset/new_folder/")
             dataset.upload()
             dataset.finalize()
             logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
