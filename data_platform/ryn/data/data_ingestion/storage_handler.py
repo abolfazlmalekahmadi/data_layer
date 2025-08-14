@@ -100,7 +100,7 @@ class DatasetStorageHandler:
 
                     print("Register to clearml")
                     print("*"*50)
-                    self.register_with_clearml(metadata, self.main_dir, s3_config, s3_main_path)
+                    self.register_with_clearml(metadata, stored_path, s3_config, s3_main_path)
                     
                     
                     # manager.upload(str(self.main_dir), remote_path)
@@ -161,7 +161,10 @@ class DatasetStorageHandler:
         return files
         
     def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config, s3_main_path: str):
-
+        print(metadata)
+        print(stored_path)
+        print(s3_config)
+        print(s3_main_path)
         try:
             os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
             os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
