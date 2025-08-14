@@ -96,11 +96,11 @@ class DatasetStorageHandler:
 
                     # Register with ClearML using S3 path
 
-                    clearml_s3_path = f's3://{s3_config["bucket_name"]}/{s3_remote_path}'
+                    s3_main_path = f's3://{s3_config["bucket_name"]}/{s3_remote_path}'
 
                     print("Register to clearml")
                     print("*"*50)
-                    self.register_with_clearml(metadata, s3_config, s3_remote_path)
+                    self.register_with_clearml(metadata, stored_path, s3_main_path)
                     
                     
                     # manager.upload(str(self.main_dir), remote_path)
@@ -160,27 +160,28 @@ class DatasetStorageHandler:
                 files.append(f"s3://{bucket}/{obj['Key']}")
         return files
         
-    def register_with_clearml(self, metadata: DatasetMetadata, s3_config: dict, s3_remote_path: str):
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_main_path: str):
 
         try:
             os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
             os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
             os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
+            
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
                 dataset_project="importing",
-                description=f"Dataset ID: {metadata.dataset_id}\nStored path: {s3_remote_path}"
+                description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
             )
-            # dataset.add_external_files(
-            #     source_url=stored_path,
-            #     dataset_path=metadata.dataset_name
-            # )
+            dataset.add_external_files(
+                source_url=stored_path,
+                dataset_path=metadata.dataset_name
+            )
             
-            files = self.list_s3_files(s3_config, s3_config['bucket_name'], s3_remote_path)
-            # for file in files:
-            # dataset.add_external_files(source_url=files, dataset_path=".")
-            dataset.add_external_files(source_url=f"s3://{s3_config['bucket_name']}/{s3_remote_path}/*")
-            # dataset.add_files(path="s3://mlops/Datasets/zai-org-CC-Bench-trajectories/main/metadata/3a6eddc5-cb23-46ec-9e5d-51e1f4a4ba44.json", dataset_path="/my_dataset/new_folder/")
+            dataset.add_tags([f"s3_location:{s3_main_path}"])
+            dataset.set_metadata({"s3_path": s3_main_path})
+            all_metadata = metadata.dict()
+            dataset.set_metadata(all_metadata)
+
             dataset.upload()
             dataset.finalize()
             logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
