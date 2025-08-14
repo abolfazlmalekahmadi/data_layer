@@ -76,4 +76,4 @@ def process_kaggle_dataset(request: KaggleDownloadRequest) -> dict:
         elif "KAGGLE_KEY" in os.environ:
             del os.environ["KAGGLE_KEY"]
 
-        storage_handler.unmount()
+        # storage_handler.unmount()

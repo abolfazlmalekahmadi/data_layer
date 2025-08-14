@@ -93,4 +93,5 @@ class S3Handler:
             logger.error(f"Error processing S3 dataset: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Internal error processing S3 dataset: {e}")
         finally:
-            storage_handler.unmount()
+            pass
+            # storage_handler.unmount()

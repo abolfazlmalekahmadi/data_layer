@@ -81,4 +81,5 @@ def process_openml_dataset(dataset_id: int, dataset_name: str, user_name: str, p
         logger.error(f"Error processing OpenML dataset '{dataset_id}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error with OpenML dataset: {e}")
     finally:
-        storage_handler.unmount()
+        pass
+        # storage_handler.unmount()
