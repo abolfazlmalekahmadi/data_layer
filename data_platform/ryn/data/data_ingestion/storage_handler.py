@@ -178,7 +178,8 @@ class DatasetStorageHandler:
             
             files = self.list_s3_files(s3_config, s3_config['bucket_name'], s3_remote_path)
             # for file in files:
-            dataset.add_external_files(source_url=files, dataset_path=".")
+            # dataset.add_external_files(source_url=files, dataset_path=".")
+            dataset.add_external_files(source_url=f"s3://{s3_config['bucket_name']}", dataset_path=f"{s3_remote_path}")
             dataset.upload()
             dataset.finalize()
             logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
