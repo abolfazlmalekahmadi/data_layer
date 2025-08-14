@@ -145,7 +145,7 @@ class DatasetStorageHandler:
             logger.error(f"Failed to load metadata for {dataset_id}: {e}")
             raise HTTPException(status_code=500, detail="Error reading dataset metadata.")
         
-    def list_s3_files(s3_config, bucket, prefix):
+    def list_s3_files(self, s3_config, bucket, prefix):
         files = []
         s3_client = boto3.client(
             's3',
@@ -171,7 +171,7 @@ class DatasetStorageHandler:
             #     dataset_path=metadata.dataset_name
             # )
             
-            files = list_s3_files(s3_config, s3_config['bucket_name'], s3_remote_path)
+            files = self.list_s3_files(s3_config, s3_config['bucket_name'], s3_remote_path)
             for file in files:
                 dataset.add_external_files(source_url=file, dataset_path=".")
             dataset.upload()
