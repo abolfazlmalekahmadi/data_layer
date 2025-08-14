@@ -161,7 +161,11 @@ class DatasetStorageHandler:
         return files
         
     def register_with_clearml(self, metadata: DatasetMetadata, s3_config: dict, s3_remote_path: str):
+
         try:
+            os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
+            os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
+            os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
                 dataset_project="importing",
