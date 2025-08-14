@@ -10,7 +10,7 @@ from data.data_ingestion.lakefs.lakefs_handler import lakefs_handler
 import subprocess
 from clearml import Dataset as ClearMLDataset
 import traceback
-
+from aipmodel.CephS3Manager import CephS3Manager
 logger = logging.getLogger(__name__)
 PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
 METADATA_DIR = PVC_BASE_DIR / "metadata"
@@ -71,7 +71,8 @@ class DatasetStorageHandler:
             clearml_path = str(stored_path)
             if s3_config:
                 try:
-                    from aipmodel.CephS3Manager import CephS3Manager
+                    print("llll"*100)
+                    print(s3_config)
                     manager = CephS3Manager(
                         endpoint_url=s3_config["endpoint_url"],
                         access_key=s3_config["access_key"],
