@@ -108,7 +108,7 @@ class DatasetStorageHandler:
 
             # register with ClearML (non-blocking ideally)
             # clearml_path = f's3://{s3_config["bucket_name"]}/{remote_path}'
-            self.register_with_clearml(metadata, clearml_path)
+            # self.register_with_clearml(metadata, clearml_path)
             return str(stored_path)
         except (IOError, OSError, FileNotFoundError) as e:
             logger.error(f"Failed to store dataset {metadata.dataset_id}: {e}")
