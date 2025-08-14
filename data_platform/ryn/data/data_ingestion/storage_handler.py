@@ -100,7 +100,7 @@ class DatasetStorageHandler:
 
                     print("Register to clearml")
                     print("*"*50)
-                    self.register_with_clearml(metadata, stored_path, s3_config, s3_main_path)
+                    self.register_with_clearml(metadata, self.main_dir, s3_config, s3_main_path)
                     
                     
                     # manager.upload(str(self.main_dir), remote_path)
