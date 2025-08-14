@@ -8,9 +8,10 @@ import logging
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.lakefs.lakefs_handler import lakefs_handler
 import subprocess
+from botocore.config import Config
+
 from clearml import Dataset as ClearMLDataset
 import traceback
-from aipmodel.CephS3Manager import CephS3Manager
 logger = logging.getLogger(__name__)
 PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
 METADATA_DIR = PVC_BASE_DIR / "metadata"
@@ -67,10 +68,11 @@ class DatasetStorageHandler:
             self.save_metadata(metadata)
             logger.info(f"Dataset {metadata.dataset_id} stored at {stored_path}")
             
-            remote_path = "" # init
+            s3_remote_path = None
             clearml_path = str(stored_path)
             if s3_config:
                 try:
+                    from aipmodel.CephS3Manager import CephS3Manager
                     print("llll"*100)
                     print(s3_config)
                     manager = CephS3Manager(
@@ -81,12 +83,24 @@ class DatasetStorageHandler:
                     )
 
                     # bucket = s3_config.get("bucket")
-                    remote_path = f"Datasets/{metadata.dataset_name}"
-                    clearml_path = f"s3://{s3_config['bucket_name']}/{remote_path}"
-                    print("he"*100)
-                    print(clearml_path)
+                    # remote_path = f"Datasets/{metadata.dataset_name}"
+                    # clearml_path = f"s3://{s3_config['bucket_name']}/{remote_path}"
+                    # print("he"*100)
+                    # print(clearml_path)
+                    s3_remote_path = f"Datasets/{metadata.dataset_name}"
+
+                    manager.upload(str(self.main_dir), s3_remote_path)
+
+                    logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config['bucket_name']}/{s3_remote_path}")
+
+                    # Register with ClearML using S3 path
+
+                    clearml_s3_path = f's3://{s3_config["bucket_name"]}/{s3_remote_path}'
+
+                    self.register_with_clearml(metadata, clearml_s3_path, use_external=True)
                     
-                    manager.upload(str(self.main_dir), remote_path)
+                    
+                    # manager.upload(str(self.main_dir), remote_path)
                     logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config['bucket_name']}/{metadata.dataset_name}")
                 except Exception as e:
                     logger.error(f"Failed to upload dataset to S3: {e}")
@@ -129,19 +143,71 @@ class DatasetStorageHandler:
             logger.error(f"Failed to load metadata for {dataset_id}: {e}")
             raise HTTPException(status_code=500, detail="Error reading dataset metadata.")
         
-    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str):
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, use_external: bool = True):
+        """
+        Register dataset with ClearML.
+        
+        Args:
+            metadata: Dataset metadata
+            stored_path: Path to the stored dataset (local or S3 URL)
+            use_external: If True, use add_external_files for S3 URLs. If False, upload local files.
+        """
         try:
+            # Create unique dataset name with timestamp to avoid conflicts
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            clearml_dataset_name = f"{metadata.dataset_name}_{timestamp}"
+            
             dataset = ClearMLDataset.create(
-                dataset_name=metadata.dataset_name,
-                dataset_project="importing",
-                description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
+                dataset_name=clearml_dataset_name,
+                dataset_project="DatasetIngestion",  # Use consistent project name
+                description=f"Dataset ID: {metadata.dataset_id}\nSource: {metadata.source}\nStored path: {stored_path}\nUser: {metadata.user_name}"
             )
-            dataset.add_external_files(
-                source_url=stored_path,
-                dataset_path=metadata.dataset_name
-            )
-            dataset.upload()
+            
+            logger.info(f"Created ClearML dataset: {clearml_dataset_name}")
+            logger.info(f"Stored path: {stored_path}")
+            
+            if use_external and stored_path.startswith('s3://'):
+                # For S3 URLs, use external files (no upload needed)
+                dataset.add_external_files(
+                    source_url=stored_path,
+                    dataset_path="/"  # Root path in the dataset
+                )
+                logger.info(f"Added external S3 files to ClearML dataset from: {stored_path}")
+            else:
+                # For local paths, upload files to ClearML
+                if Path(stored_path).exists():
+                    dataset.add_files(path=stored_path)
+                    dataset.upload()
+                    logger.info(f"Uploaded local files to ClearML dataset from: {stored_path}")
+                else:
+                    logger.warning(f"Local path does not exist: {stored_path}")
+                    return
+            
+            # Add metadata as tags and custom properties
+            dataset.add_tags([
+                metadata.source,
+                f"user:{metadata.user_name}",
+                f"private:{metadata.private}"
+            ])
+            
+            # Set custom properties
+            dataset.set_metadata({
+                'dataset_id': metadata.dataset_id,
+                'original_name': metadata.dataset_name,
+                'source': metadata.source,
+                'user_name': metadata.user_name,
+                'private': str(metadata.private),
+                'dataset_config': metadata.dataset_config or '',
+                'dataset_tag': metadata.dataset_tag or '',
+                'created_at': metadata.created_at
+            })
+            
             dataset.finalize()
-            logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
+            logger.info(f"Dataset {clearml_dataset_name} successfully registered with ClearML (ID: {dataset.id})")
+            
         except Exception as e:
             logger.error(f"Failed to register dataset with ClearML: {e}")
+            logger.error(f"Error details: {traceback.format_exc()}")
+            # Don't raise the exception to avoid failing the main process
+            pass
