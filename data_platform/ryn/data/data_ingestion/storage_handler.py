@@ -204,7 +204,7 @@ class DatasetStorageHandler:
             })
             
             dataset.finalize()
-            logger.info(f"Dataset {clearml_dataset_name} successfully registered with ClearML (ID: {dataset.id})")
+            logger.info(f"Dataset {metadata.dataset_name} successfully registered with ClearML (ID: {dataset.id})")
             
         except Exception as e:
             logger.error(f"Failed to register dataset with ClearML: {e}")
