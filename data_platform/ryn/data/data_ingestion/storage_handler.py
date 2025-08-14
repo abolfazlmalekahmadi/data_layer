@@ -154,21 +154,22 @@ class DatasetStorageHandler:
         """
         try:
             # Create unique dataset name with timestamp to avoid conflicts
-            # import datetime
-            # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            # clearml_dataset_name = f"{metadata.dataset_name}_{timestamp}"
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            clearml_dataset_name = f"{metadata.dataset_name}_{timestamp}"
             
             dataset = ClearMLDataset.create(
-                dataset_name=metadata.dataset_name,
+                dataset_name=clearml_dataset_name,
                 dataset_project="DatasetIngestion",  # Use consistent project name
                 description=f"Dataset ID: {metadata.dataset_id}\nSource: {metadata.source}\nStored path: {stored_path}\nUser: {metadata.user_name}"
             )
             
-            logger.info(f"Created ClearML dataset: {metadata.dataset_name}")
+            logger.info(f"Created ClearML dataset: {clearml_dataset_name}")
             logger.info(f"Stored path: {stored_path}")
             
             if use_external and stored_path.startswith('s3://'):
                 # For S3 URLs, use external files (no upload needed)
+                print("wtf")
                 dataset.add_external_files(
                     source_url=stored_path,
                     dataset_path="/"  # Root path in the dataset
@@ -204,7 +205,7 @@ class DatasetStorageHandler:
             })
             
             dataset.finalize()
-            logger.info(f"Dataset {metadata.dataset_name} successfully registered with ClearML (ID: {dataset.id})")
+            logger.info(f"Dataset {clearml_dataset_name} successfully registered with ClearML (ID: {dataset.id})")
             
         except Exception as e:
             logger.error(f"Failed to register dataset with ClearML: {e}")
