@@ -99,7 +99,7 @@ class DatasetStorageHandler:
 
                     print("Register to clearml")
                     print("*"*50)
-                    self.register_with_clearml(metadata, clearml_s3_path)
+                    self.register_with_clearml(metadata, s3_config, s3_remote_path)
                     
                     
                     # manager.upload(str(self.main_dir), remote_path)
@@ -145,17 +145,35 @@ class DatasetStorageHandler:
             logger.error(f"Failed to load metadata for {dataset_id}: {e}")
             raise HTTPException(status_code=500, detail="Error reading dataset metadata.")
         
-    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str):
+    def list_s3_files(s3_config, bucket, prefix):
+        files = []
+        s3_client = boto3.client(
+            's3',
+            endpoint_url=s3_config['endpoint_url'],
+            aws_access_key_id=s3_config['access_key'],
+            aws_secret_access_key=s3_config['secret_key']
+            )
+        paginator = s3_client.get_paginator('list_objects_v2')
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get('Contents', []):
+                files.append(f"s3://{bucket}/{obj['Key']}")
+        return files
+        
+    def register_with_clearml(self, metadata: DatasetMetadata, s3_config: dict, s3_remote_path: str):
         try:
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
                 dataset_project="importing",
                 description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
             )
-            dataset.add_external_files(
-                source_url=stored_path,
-                dataset_path=metadata.dataset_name
-            )
+            # dataset.add_external_files(
+            #     source_url=stored_path,
+            #     dataset_path=metadata.dataset_name
+            # )
+            
+            files = list_s3_files(s3_config, s3_config['bucket_name'], s3_remote_path)
+            for file in files:
+                dataset.add_external_files(source_url=file, dataset_path=".")
             dataset.upload()
             dataset.finalize()
             logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
