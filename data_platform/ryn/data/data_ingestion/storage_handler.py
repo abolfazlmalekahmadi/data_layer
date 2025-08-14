@@ -154,17 +154,17 @@ class DatasetStorageHandler:
         """
         try:
             # Create unique dataset name with timestamp to avoid conflicts
-            import datetime
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            clearml_dataset_name = f"{metadata.dataset_name}_{timestamp}"
+            # import datetime
+            # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            # clearml_dataset_name = f"{metadata.dataset_name}_{timestamp}"
             
             dataset = ClearMLDataset.create(
-                dataset_name=clearml_dataset_name,
+                dataset_name=metadata.dataset_name,
                 dataset_project="DatasetIngestion",  # Use consistent project name
                 description=f"Dataset ID: {metadata.dataset_id}\nSource: {metadata.source}\nStored path: {stored_path}\nUser: {metadata.user_name}"
             )
             
-            logger.info(f"Created ClearML dataset: {clearml_dataset_name}")
+            logger.info(f"Created ClearML dataset: {metadata.dataset_name}")
             logger.info(f"Stored path: {stored_path}")
             
             if use_external and stored_path.startswith('s3://'):
@@ -174,15 +174,15 @@ class DatasetStorageHandler:
                     dataset_path="/"  # Root path in the dataset
                 )
                 logger.info(f"Added external S3 files to ClearML dataset from: {stored_path}")
-            else:
-                # For local paths, upload files to ClearML
-                if Path(stored_path).exists():
-                    dataset.add_files(path=stored_path)
-                    dataset.upload()
-                    logger.info(f"Uploaded local files to ClearML dataset from: {stored_path}")
-                else:
-                    logger.warning(f"Local path does not exist: {stored_path}")
-                    return
+            # else:
+            #     # For local paths, upload files to ClearML
+            #     if Path(stored_path).exists():
+            #         dataset.add_files(path=stored_path)
+            #         dataset.upload()
+            #         logger.info(f"Uploaded local files to ClearML dataset from: {stored_path}")
+            #     else:
+            #         logger.warning(f"Local path does not exist: {stored_path}")
+            #         return
             
             # Add metadata as tags and custom properties
             dataset.add_tags([
