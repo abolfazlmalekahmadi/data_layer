@@ -46,57 +46,6 @@ class DatasetStorageHandler:
     def generate_dataset_id(self) -> str:
         return str(uuid.uuid4())
     
-    def configure_clearml_s3(self, s3_config: dict):
-        """Configure ClearML to work with custom S3 endpoint"""
-        try:
-            # Set environment variables for ClearML S3 access
-            os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
-            os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
-            os.environ['AWS_DEFAULT_REGION'] = s3_config.get('region', 'us-east-1')
-            
-            # For custom S3 endpoints
-            if 'endpoint_url' in s3_config:
-                os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
-                os.environ['AWS_S3_USE_SSL'] = 'false' if 'http://' in s3_config['endpoint_url'] else 'true'
-                # Additional settings for custom S3
-                os.environ['AWS_S3_ADDRESSING_STYLE'] = 'path'  # Use path-style addressing
-                os.environ['AWS_S3_REGION'] = s3_config.get('region', 'us-east-1')
-            
-            logger.info("Configured ClearML S3 credentials")
-        except Exception as e:
-            logger.error(f"Failed to configure ClearML S3 credentials: {e}")
-    
-    def test_s3_access(self, s3_config: dict, s3_path: str) -> bool:
-        """Test if ClearML can access the S3 path"""
-        try:
-            import boto3
-            from botocore.exceptions import NoCredentialsError, ClientError
-            
-            # Create boto3 client with the same config
-            client = boto3.client(
-                's3',
-                endpoint_url=s3_config['endpoint_url'],
-                aws_access_key_id=s3_config['access_key'],
-                aws_secret_access_key=s3_config['secret_key'],
-                region_name=s3_config.get('region', 'us-east-1')
-            )
-            
-            # Parse S3 path
-            bucket_name = s3_config['bucket_name']
-            prefix = s3_path.replace(f's3://{bucket_name}/', '')
-            
-            # Try to list objects
-            response = client.list_objects_v2(
-                Bucket=bucket_name,
-                Prefix=prefix,
-                MaxKeys=1
-            )
-            
-            return True
-        except Exception as e:
-            logger.warning(f"S3 access test failed: {e}")
-            return False
-    
     def store_dataset(self, source_path: Path, metadata: DatasetMetadata, s3_config: dict = None) -> str:
         dataset_dir = self.base_dir / metadata.dataset_name
         print(source_path)
@@ -133,37 +82,35 @@ class DatasetStorageHandler:
                         bucket_name=s3_config["bucket_name"]
                     )
 
+                    # bucket = s3_config.get("bucket")
+                    # remote_path = f"Datasets/{metadata.dataset_name}"
+                    # clearml_path = f"s3://{s3_config['bucket_name']}/{remote_path}"
+                    # print("he"*100)
+                    # print(clearml_path)
                     s3_remote_path = f"Datasets/{metadata.dataset_name}"
+
                     manager.upload(str(self.main_dir), s3_remote_path)
+
                     logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config['bucket_name']}/{s3_remote_path}")
 
-                    # Configure ClearML with S3 credentials
-                    self.configure_clearml_s3(s3_config)
-                    
                     # Register with ClearML using S3 path
+
                     clearml_s3_path = f's3://{s3_config["bucket_name"]}/{s3_remote_path}'
+
                     print("Register to clearml")
                     print("*"*50)
-                    print(f"ClearML S3 path: {clearml_s3_path}")
+                    self.register_with_clearml(metadata, clearml_s3_path)
                     
-                    # Test S3 access before registration
-                    if self.test_s3_access(s3_config, clearml_s3_path):
-                        print("S3 access test passed - registering with S3")
-                        self.register_with_clearml(metadata, clearml_s3_path, s3_config)
-                    else:
-                        print("S3 access test failed - registering with local files and S3 metadata")
-                        self.register_with_clearml(metadata, str(stored_path), s3_config, clearml_s3_path)
                     
+                    # manager.upload(str(self.main_dir), remote_path)
+                    logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config['bucket_name']}/{metadata.dataset_name}")
                 except Exception as e:
                     logger.error(f"Failed to upload dataset to S3: {e}")
                     print(traceback.print_exc())
-                    # Fallback to local path registration
-                    self.register_with_clearml(metadata, str(stored_path))
 
-            else:
-                # Register with local path if no S3 config
-                self.register_with_clearml(metadata, clearml_path)
-                
+            # register with ClearML (non-blocking ideally)
+            # clearml_path = f's3://{s3_config["bucket_name"]}/{remote_path}'
+            # self.register_with_clearml(metadata, clearml_path)
             return str(stored_path)
         except (IOError, OSError, FileNotFoundError) as e:
             logger.error(f"Failed to store dataset {metadata.dataset_id}: {e}")
@@ -197,62 +144,20 @@ class DatasetStorageHandler:
         except Exception as e:
             logger.error(f"Failed to load metadata for {dataset_id}: {e}")
             raise HTTPException(status_code=500, detail="Error reading dataset metadata.")
-    
-    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config: dict = None, s3_backup_path: str = None):
+        
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str):
         try:
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
                 dataset_project="importing",
                 description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
             )
-            
-            if s3_config and stored_path.startswith('s3://'):
-                # This path should only be reached if S3 access test passed
-                try:
-                    dataset.add_external_files(
-                        source_url=stored_path,
-                        dataset_path="."
-                    )
-                    logger.info(f"Successfully added S3 external files for dataset {metadata.dataset_name}")
-                except Exception as e:
-                    logger.error(f"Failed to add S3 external files even after access test: {e}")
-                    # Fallback to local registration
-                    self._register_local_with_s3_metadata(dataset, metadata, stored_path)
-                    
-            else:
-                # Register with local files
-                local_data_path = str(self.base_dir / metadata.dataset_name / "data")
-                print(f"Registering local path: {local_data_path}")
-                
-                if Path(local_data_path).exists():
-                    if Path(local_data_path).is_file():
-                        dataset.add_files(path=local_data_path)
-                        print(f"Added single file: {local_data_path}")
-                    elif Path(local_data_path).is_dir():
-                        dataset.add_files(path=local_data_path, wildcard="*")
-                        print(f"Added directory with wildcard: {local_data_path}")
-                    logger.info(f"Added local files for dataset {metadata.dataset_name}")
-                    
-                    # Add S3 backup information if available
-                    if s3_backup_path:
-                        dataset.add_tags([f"s3_backup:{s3_backup_path}"])
-                        dataset.set_metadata("s3_location", s3_backup_path)
-                        dataset.set_metadata("storage_type", "hybrid_local_s3")
-                        logger.info(f"Added S3 backup metadata: {s3_backup_path}")
-                        
-                else:
-                    logger.error(f"Local path {local_data_path} does not exist")
-                    raise FileNotFoundError(f"Dataset files not found at {local_data_path}")
-            
-            # Upload and finalize
-            print("Uploading dataset to ClearML...")
+            dataset.add_external_files(
+                source_url=stored_path,
+                dataset_path=metadata.dataset_name
+            )
             dataset.upload()
-            print("Finalizing dataset...")
             dataset.finalize()
-            logger.info(f"Dataset {metadata.dataset_name} successfully registered with ClearML.")
-            
+            logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
         except Exception as e:
             logger.error(f"Failed to register dataset with ClearML: {e}")
-            print(f"ClearML registration error: {traceback.format_exc()}")
-            # Don't raise the exception to avoid breaking the main flow
-            logger.warning("Dataset stored successfully but ClearML registration failed")
