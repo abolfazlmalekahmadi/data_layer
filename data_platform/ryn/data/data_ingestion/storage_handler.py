@@ -164,7 +164,7 @@ class DatasetStorageHandler:
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
                 dataset_project="importing",
-                description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
+                description=f"Dataset ID: {metadata.dataset_id}\nStored path: {s3_remote_path}"
             )
             # dataset.add_external_files(
             #     source_url=stored_path,
