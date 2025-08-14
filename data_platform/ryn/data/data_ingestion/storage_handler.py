@@ -72,7 +72,7 @@ class DatasetStorageHandler:
             clearml_path = str(stored_path)
             if s3_config:
                 try:
-                    from aipmodel.CephS3Manager import CephS3Manager
+                    from aipmodel.model_registry import CephS3Manager
                     print("llll"*100)
                     print(s3_config)
                     manager = CephS3Manager(
