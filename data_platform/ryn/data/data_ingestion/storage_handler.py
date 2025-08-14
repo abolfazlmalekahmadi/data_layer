@@ -68,6 +68,7 @@ class DatasetStorageHandler:
             logger.info(f"Dataset {metadata.dataset_id} stored at {stored_path}")
             
             remote_path = "" # init
+            clearml_path = str(stored_path)
             if s3_config:
                 try:
                     from aipmodel.CephS3Manager import CephS3Manager
@@ -80,14 +81,18 @@ class DatasetStorageHandler:
 
                     # bucket = s3_config.get("bucket")
                     remote_path = f"Datasets/{metadata.dataset_name}"
+                    clearml_path = f"s3://{s3_config['bucket_name']}/{remote_path}"
+                    print("he"*100)
+                    print(clearml_path)
+                    
                     manager.upload(str(self.main_dir), remote_path)
-                    logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config["bucket_name"]}/{metadata.dataset_name}")
+                    logger.info(f"Uploaded dataset {metadata.dataset_name} to S3 at {s3_config['bucket_name']}/{metadata.dataset_name}")
                 except Exception as e:
                     logger.error(f"Failed to upload dataset to S3: {e}")
                     print(traceback.print_exc())
 
             # register with ClearML (non-blocking ideally)
-            clearml_path = f's3://{s3_config["bucket_name"]}/{remote_path}'
+            # clearml_path = f's3://{s3_config["bucket_name"]}/{remote_path}'
             self.register_with_clearml(metadata, clearml_path)
             return str(stored_path)
         except (IOError, OSError, FileNotFoundError) as e:
