@@ -146,7 +146,13 @@ class DatasetStorageHandler:
                     print("*"*50)
                     print(f"ClearML S3 path: {clearml_s3_path}")
                     
-                    self.register_with_clearml(metadata, clearml_s3_path, s3_config)
+                    # Test S3 access before registration
+                    if self.test_s3_access(s3_config, clearml_s3_path):
+                        print("S3 access test passed - registering with S3")
+                        self.register_with_clearml(metadata, clearml_s3_path, s3_config)
+                    else:
+                        print("S3 access test failed - registering with local files and S3 metadata")
+                        self.register_with_clearml(metadata, str(stored_path), s3_config, clearml_s3_path)
                     
                 except Exception as e:
                     logger.error(f"Failed to upload dataset to S3: {e}")
@@ -192,7 +198,7 @@ class DatasetStorageHandler:
             logger.error(f"Failed to load metadata for {dataset_id}: {e}")
             raise HTTPException(status_code=500, detail="Error reading dataset metadata.")
     
-    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config: dict = None):
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config: dict = None, s3_backup_path: str = None):
         try:
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
@@ -201,41 +207,47 @@ class DatasetStorageHandler:
             )
             
             if s3_config and stored_path.startswith('s3://'):
-                # Test S3 access first
-                can_access_s3 = self.test_s3_access(s3_config, stored_path)
-                
-                if can_access_s3:
-                    # Method 1: Try adding external files with S3 URL
-                    try:
-                        dataset.add_external_files(
-                            source_url=stored_path,
-                            dataset_path="."
-                        )
-                        logger.info(f"Added S3 external files for dataset {metadata.dataset_name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to add S3 external files: {e}")
-                        # Fallback to local registration
-                        self._register_local_with_s3_metadata(dataset, metadata, stored_path)
-                else:
-                    logger.warning("ClearML cannot access S3 endpoint, registering with metadata only")
+                # This path should only be reached if S3 access test passed
+                try:
+                    dataset.add_external_files(
+                        source_url=stored_path,
+                        dataset_path="."
+                    )
+                    logger.info(f"Successfully added S3 external files for dataset {metadata.dataset_name}")
+                except Exception as e:
+                    logger.error(f"Failed to add S3 external files even after access test: {e}")
+                    # Fallback to local registration
                     self._register_local_with_s3_metadata(dataset, metadata, stored_path)
                     
             else:
-                # For local paths, add files normally
-                local_path = stored_path.replace('s3://', '').split('/', 1)[1] if stored_path.startswith('s3://') else stored_path
-                local_full_path = str(self.base_dir / metadata.dataset_name / "data")
+                # Register with local files
+                local_data_path = str(self.base_dir / metadata.dataset_name / "data")
+                print(f"Registering local path: {local_data_path}")
                 
-                if Path(local_full_path).exists():
-                    if Path(local_full_path).is_file():
-                        dataset.add_files(path=local_full_path)
-                    elif Path(local_full_path).is_dir():
-                        dataset.add_files(path=local_full_path, wildcard="*")
+                if Path(local_data_path).exists():
+                    if Path(local_data_path).is_file():
+                        dataset.add_files(path=local_data_path)
+                        print(f"Added single file: {local_data_path}")
+                    elif Path(local_data_path).is_dir():
+                        dataset.add_files(path=local_data_path, wildcard="*")
+                        print(f"Added directory with wildcard: {local_data_path}")
                     logger.info(f"Added local files for dataset {metadata.dataset_name}")
+                    
+                    # Add S3 backup information if available
+                    if s3_backup_path:
+                        dataset.add_tags([f"s3_backup:{s3_backup_path}"])
+                        dataset.set_metadata("s3_location", s3_backup_path)
+                        dataset.set_metadata("storage_type", "hybrid_local_s3")
+                        logger.info(f"Added S3 backup metadata: {s3_backup_path}")
+                        
                 else:
-                    logger.warning(f"Local path {local_full_path} does not exist")
+                    logger.error(f"Local path {local_data_path} does not exist")
+                    raise FileNotFoundError(f"Dataset files not found at {local_data_path}")
             
             # Upload and finalize
+            print("Uploading dataset to ClearML...")
             dataset.upload()
+            print("Finalizing dataset...")
             dataset.finalize()
             logger.info(f"Dataset {metadata.dataset_name} successfully registered with ClearML.")
             
@@ -244,24 +256,3 @@ class DatasetStorageHandler:
             print(f"ClearML registration error: {traceback.format_exc()}")
             # Don't raise the exception to avoid breaking the main flow
             logger.warning("Dataset stored successfully but ClearML registration failed")
-    
-    def _register_local_with_s3_metadata(self, dataset, metadata: DatasetMetadata, s3_path: str):
-        """Register dataset with local files but include S3 metadata"""
-        try:
-            # Add local files
-            local_data_path = str(self.base_dir / metadata.dataset_name / "data")
-            if Path(local_data_path).exists():
-                if Path(local_data_path).is_file():
-                    dataset.add_files(path=local_data_path)
-                elif Path(local_data_path).is_dir():
-                    dataset.add_files(path=local_data_path, wildcard="*")
-            
-            # Add S3 metadata
-            dataset.add_tags([f"s3_backup:{s3_path}"])
-            dataset.set_metadata("s3_location", s3_path)
-            dataset.set_metadata("storage_type", "hybrid_local_s3")
-            
-            logger.info(f"Registered dataset {metadata.dataset_name} with local files and S3 metadata")
-            
-        except Exception as e:
-            logger.error(f"Failed to register with local files and S3 metadata: {e}")
