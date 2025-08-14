@@ -97,7 +97,7 @@ class DatasetStorageHandler:
 
                     clearml_s3_path = f's3://{s3_config["bucket_name"]}/{s3_remote_path}'
 
-                    self.register_with_clearml(metadata, clearml_s3_path, use_external=True)
+                    self.register_with_clearml(metadata, clearml_s3_path)
                     
                     
                     # manager.upload(str(self.main_dir), remote_path)
