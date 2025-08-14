@@ -59,7 +59,7 @@ class HuggingFaceHandler:
             # move dataset to PVC permanent place and upload to s3 if s3_config provided
             stored_path = storage_handler.store_dataset(local_dataset_dir, metadata, s3_config=s3_config)
             # register witth clearml
-            storage_handler.register_with_clearml(metadata, stored_path)
+            # storage_handler.register_with_clearml(metadata, stored_path)
             return {
                 "status": "success",
                 "message": f"Hugging Face dataset '{dataset_name}' stored.",
