@@ -60,8 +60,8 @@ class S3Handler:
             temp_dir = storage_handler.temp_dir
             logger.info(f"Using S3-mounted temp directory: {temp_dir}")
 
-            local_file = temp_dir / "S3"
-            print()
+            local_file = temp_dir 
+          
             print(local_file)
             self.download_file(s3_file_path, local_file, s3_client)
 
