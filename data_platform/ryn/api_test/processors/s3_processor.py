@@ -28,7 +28,7 @@ def main():
         dataset_name = params.get("dataset_name")
         user_name = params.get("user_name")
         private = params.get("private", False)
-        dataset_tag = params.get("dataset_tag")
+        dataset_tag = params.get("dataset_tag", "")
         print(params)
         print("10"*10)
         
@@ -49,7 +49,7 @@ def main():
             dataset_name=dataset_name,
             user_name=user_name,
             private=private,
-            dataset_tag=dataset_tag
+            dataset_tag=dataset_tag if dataset_tag else None,
         )
         
         # Create ClearML dataset if processing was successful
