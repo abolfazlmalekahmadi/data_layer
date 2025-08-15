@@ -188,8 +188,7 @@ class DatasetStorageHandler:
             all_metadata = metadata.dict()
             all_metadata.update({
                 "s3_path": s3_main_path,
-                "dataset_name": metadata.dataset_name,
-                "dataset_id": metadata.dataset_id
+                "clearml_dataset_id":ds_id
             })
 
             dataset.set_metadata(all_metadata)
