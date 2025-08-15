@@ -336,7 +336,8 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
             "s3_file_path": s3_request.s3_file_path,
             "dataset_name": s3_request.dataset_name,
             "user_name": s3_request.user_name,
-            "private": s3_request.private
+            "private": s3_request.private,
+            "dataset_tag":s3_request.dataset_tag 
         }
         
         # Create ClearML task

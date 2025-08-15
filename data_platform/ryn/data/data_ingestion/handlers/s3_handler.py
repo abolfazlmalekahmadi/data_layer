@@ -79,7 +79,7 @@ class S3Handler:
                 created_at=datetime.now().isoformat(),
                 file_path="",
                 summary=summarize_dataset(local_file),
-                dataset_tag=dataset_tag
+                dataset_tag=dataset_tag or "ML"
             )
 
             stored_path = storage_handler.store_dataset(local_file, metadata)
