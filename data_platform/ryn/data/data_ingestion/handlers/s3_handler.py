@@ -42,7 +42,7 @@ class S3Handler:
         try:
             mount_dataset_name = dataset_name or Path(s3_file_path).stem
             storage_handler = DatasetStorageHandler(mount_dataset_name)
-
+            print(f"storage_handler:{storage_handler}")
             DatasetConditionChecker().check_s3_size(
                 access_key=self.access_key,
                 secret_key=self.secret_key,
@@ -61,6 +61,7 @@ class S3Handler:
             logger.info(f"Using S3-mounted temp directory: {temp_dir}")
 
             local_file = temp_dir 
+            print(f"local_file:{local_file}")
           
             print(local_file)
             self.download_file(s3_file_path, local_file, s3_client)
