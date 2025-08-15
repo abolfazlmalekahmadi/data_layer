@@ -40,7 +40,8 @@ class S3Handler:
         Download an S3 dataset, persist it to S3-mounted temp directory, and return metadata.
         """
         try:
-            mount_dataset_name = dataset_name or Path(s3_file_path).stem
+            mount_dataset_name = dataset_name 
+            print(f"{mount_dataset_name}0000000000000")
             storage_handler = DatasetStorageHandler(mount_dataset_name)
 
             DatasetConditionChecker().check_s3_size(
