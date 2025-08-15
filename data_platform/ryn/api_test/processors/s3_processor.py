@@ -30,8 +30,9 @@ def main():
         private = params.get("private", False)
         dataset_tag = params.get("dataset_tag")
         s3_config_target = params.get("s3_config_target", {})
+        print("10"*10)
 
-    
+        print(s3_config_target)
         logger.info(f"Processing S3 dataset: {dataset_name}")
         
         # Create S3 handler
