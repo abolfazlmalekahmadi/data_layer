@@ -28,7 +28,7 @@ def main():
         user_name = params.get("user_name")
         private = params.get("private", False)
         dataset_tag = params.get("dataset_tag")
-        print(dataset_name)
+        print(params)
         print("10"*10)
         
         
