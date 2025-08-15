@@ -322,47 +322,48 @@ async def ingest_openml(request: OpenMLDownloadRequest):
 @app.post("/s3")
 async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
     """Create and enqueue a ClearML task for S3 dataset ingestion."""
-    try:
-        raw_body = await request.body()
-        logger.info(f"Raw request body: {raw_body}")
-        
-        # Prepare task parameters
-        parameters = {
-            "task_type": "s3",
-            "access_key": s3_request.access_key,
-            "secret_key": s3_request.secret_key,
-            "endpoint_url": s3_request.endpoint_url,
-            "bucket_name": s3_request.bucket_name,
-            "s3_file_path": s3_request.s3_file_path,
-            "dataset_name": s3_request.dataset_name,
-            "user_name": s3_request.user_name,
-            "private": s3_request.private,
-            "dataset_tag":s3_request.dataset_tag 
-        }
-        
-        # Create ClearML task
-        task = ClearMLTaskManager.create_task(
-            task_name=f"S3_{s3_request.dataset_name}",
-            script_name="s3_processor.py",
-            parameters=parameters
-        )
-        
-        # Enqueue the task
-        task_id = ClearMLTaskManager.enqueue_task(task)
-        
-        return {
-            "status": "success",
-            "message": f"S3 dataset ingestion task created and enqueued",
-            "task_id": task_id,
-            "dataset_name": s3_request.dataset_name,
-            "queue": DEFAULT_QUEUE_NAME
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating S3 ingestion task: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
+    # try:
+    raw_body = await request.body()
+    logger.info(f"Raw request body: {raw_body}")
+    
+    # Prepare task parameters
+    parameters = {
+        "task_type": "s3",
+        "access_key": s3_request.access_key,
+        "secret_key": s3_request.secret_key,
+        "endpoint_url": s3_request.endpoint_url,
+        "bucket_name": s3_request.bucket_name,
+        "s3_file_path": s3_request.s3_file_path,
+        "dataset_name": s3_request.dataset_name,
+        "user_name": s3_request.user_name,
+        "private": s3_request.private,
+        "dataset_tag":s3_request.dataset_tag 
+    }
+    print("hhhh")
+    # raise ValueError(parameters)
+    # Create ClearML task
+    task = ClearMLTaskManager.create_task(
+        task_name=f"S3_{s3_request.dataset_name}",
+        script_name="s3_processor.py",
+        parameters=parameters
+    )
+    
+    # Enqueue the task
+    task_id = ClearMLTaskManager.enqueue_task(task)
+    
+    return {
+        "status": "success",
+        "message": f"S3 dataset ingestion task created and enqueued",
+        "task_id": task_id,
+        "dataset_name": s3_request.dataset_name,
+        "queue": DEFAULT_QUEUE_NAME
+    }
+    
+    # except HTTPException:
+    #     raise
+    # except Exception as e:
+    #     logger.error(f"Error creating S3 ingestion task: {e}")
+    #     raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
 @app.get("/task-status/{task_id}")
 async def get_task_status(task_id: str):

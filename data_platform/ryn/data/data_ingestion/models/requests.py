@@ -12,6 +12,7 @@ class S3DownloadRequest(BaseModel):
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
     dataset_tag: Optional[str] = Field(default=None, alias="dataset_tag")
+    
 class KaggleDownloadRequest(BaseModel):
     dataset_id: str
     user_name: str
