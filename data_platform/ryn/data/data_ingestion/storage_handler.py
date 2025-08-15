@@ -185,8 +185,13 @@ class DatasetStorageHandler:
                 f"s3_path:{s3_main_path}",
                 f"dataset_tag:{metadata.dataset_tag}"
                 ])
-            dataset.set_metadata({"s3_path": s3_main_path ,"dataset_name":metadata.dataset_name , "dataset_id":metadata.dataset_id})
             all_metadata = metadata.dict()
+            all_metadata.update({
+                "s3_path": s3_main_path,
+                "dataset_name": metadata.dataset_name,
+                "dataset_id": metadata.dataset_id
+            })
+
             dataset.set_metadata(all_metadata)
 
             dataset.upload()
