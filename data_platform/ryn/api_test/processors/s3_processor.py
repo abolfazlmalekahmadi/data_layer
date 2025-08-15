@@ -30,6 +30,10 @@ def main():
         private = params.get("private", False)
         dataset_tag = params.get("dataset_tag")
         s3_config_target = params.get("s3_config_target", {})
+        s3_config_target = {
+            key.replace("_target", ""): value
+            for key, value in s3_config_target.items()
+                }
         print("10"*10)
 
         print(s3_config_target)
