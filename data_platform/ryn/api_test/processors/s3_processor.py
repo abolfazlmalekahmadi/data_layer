@@ -29,11 +29,9 @@ def main():
         user_name = params.get("user_name")
         private = params.get("private", False)
         dataset_tag = params.get("dataset_tag")
-        
-        print(params)
-        print("10"*10)
-        
-        
+        s3_config_target = params.get("s3_config_target", {})
+
+    
         logger.info(f"Processing S3 dataset: {dataset_name}")
         
         # Create S3 handler
@@ -51,6 +49,7 @@ def main():
             user_name=user_name,
             private=private,
             dataset_tag=dataset_tag if dataset_tag else None,
+            s3_config_target=s3_config_target
         )
         
         # Create ClearML dataset if processing was successful
