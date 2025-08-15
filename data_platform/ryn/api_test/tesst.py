@@ -17,12 +17,21 @@
 from clearml import Dataset
 
 # Replace with your dataset name
-dataset_name = "classification_cat_dog_a2122b"
+dataset_name = "classification_cat_dog_abolfazl"
 
 # Get the dataset by name
 dataset = Dataset.get(dataset_name=dataset_name)
 
 # Fetch and print the dataset metadata
 metadata = dataset.get_metadata()
-print("Metadata for dataset:", dataset_name)
-print(metadata)
+print("Metadata for dataset:", metadata)
+# print(metadata)
+
+        # Step 1: Find the ClearML dataset by name and user
+# datasets = Dataset.list_datasets(
+#              # Your project name for datasets
+#             partial_name=dataset_name,
+#             only_completed=True
+#         )
+
+# print(datasets)

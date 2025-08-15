@@ -449,7 +449,6 @@ async def list_datasets(request: ListDatasetsRequest):
     finally:
         if storage_handler:
             storage_handler.unmount()
-
 @app.post("/download-dataset")
 async def download_dataset(request: DownloadDatasetRequest):
     """
@@ -459,9 +458,9 @@ async def download_dataset(request: DownloadDatasetRequest):
     try:
         logger.info(f"Starting download for dataset: {request.dataset_name}, user: {request.user_name}")
         
-        # Step 1: Find the ClearML dataset by name and user
+        # Step 1: Find the ClearML dataset by name
         datasets = Dataset.list_datasets(
-            dataset_project="importing",  # Your project name for datasets
+            # Your project name for datasets
             partial_name=request.dataset_name,
             only_completed=True
         )
@@ -478,18 +477,23 @@ async def download_dataset(request: DownloadDatasetRequest):
         
         for dataset_dict in datasets:
             try:
-                # Get the actual Dataset object to access metadata and tags
+                # Get the actual Dataset object to access metadata
                 dataset_obj = Dataset.get(dataset_id=dataset_dict["id"])
                 dataset_metadata = dataset_obj.get_metadata()
-                dataset_tags = dataset_obj.get_tags()
+                
+                logger.info(f"Checking dataset: {dataset_dict.get('name')}")
+                logger.info(f"Metadata: {dataset_metadata}")
                 
                 # Check if this matches our criteria (check both metadata and dataset name)
                 metadata_name_match = dataset_metadata.get("dataset_name") == request.dataset_name
                 dict_name_match = dataset_dict.get("name") == request.dataset_name
                 user_match = dataset_metadata.get("user_name") == request.user_name
                 
-                # Check if dataset has s3_path tag (indicates it was uploaded to S3)
-                has_s3_path = any(tag.startswith("s3_path:") for tag in dataset_tags)
+                # Check if dataset has s3_path in metadata
+                has_s3_path = dataset_metadata.get("s3_path") is not None
+                
+                logger.info(f"Name matches: metadata={metadata_name_match}, dict={dict_name_match}")
+                logger.info(f"User match: {user_match}, Has S3 path: {has_s3_path}")
                 
                 if (metadata_name_match or dict_name_match) and user_match and has_s3_path:
                     target_dataset = dataset_dict
@@ -498,7 +502,7 @@ async def download_dataset(request: DownloadDatasetRequest):
                     break
                     
             except Exception as e:
-                logger.warning(f"Could not get metadata/tags for dataset {dataset_dict['id']}: {e}")
+                logger.warning(f"Could not get metadata for dataset {dataset_dict['id']}: {e}")
                 continue
         
         if not target_dataset or not target_dataset_obj:
@@ -509,22 +513,14 @@ async def download_dataset(request: DownloadDatasetRequest):
         
         logger.info(f"Found target dataset: {target_dataset['id']}")
         
-        # Step 3: Extract S3 information from dataset tags
-        dataset_tags = target_dataset_obj.get_tags()
-        logger.info(f"Dataset tags: {dataset_tags}")
-        s3_path = None
-        
-        # Look for s3_path in tags (format: "s3_path:s3://bucket/path")
-        for tag in dataset_tags:
-            if tag.startswith("s3_path:"):
-                s3_path = tag.split("s3_path:", 1)[1]  # Extract path after "s3_path:"
-                logger.info(f"Found S3 path in tag: {s3_path}")
-                break
+        # Step 3: Extract S3 information from dataset metadata
+        dataset_metadata = target_dataset_obj.get_metadata()
+        s3_path = dataset_metadata.get("s3_path")
         
         if not s3_path:
             raise HTTPException(
                 status_code=400,
-                detail=f"Dataset does not have S3 path information in tags. Available tags: {dataset_tags}"
+                detail=f"Dataset does not have S3 path information in metadata. Available metadata keys: {list(dataset_metadata.keys())}"
             )
         
         logger.info(f"Found S3 path: {s3_path}")
@@ -655,7 +651,6 @@ async def download_dataset(request: DownloadDatasetRequest):
             status_code=500,
             detail=f"Internal error during dataset download: {str(e)}"
         )
-
 @app.get("/clearml-datasets")
 async def list_clearml_datasets(project_name: str = CLEARML_PROJECT_NAME):
     """List ClearML datasets in the project."""
