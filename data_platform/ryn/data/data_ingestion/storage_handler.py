@@ -179,17 +179,21 @@ class DatasetStorageHandler:
                 source_url=stored_path,
                 dataset_path=metadata.dataset_name
             )
-            
+            # <-- ClearML dataset ID
+            ds_id = dataset.id
             dataset.add_tags([
                 f"s3_path:{s3_main_path}",
                 f"dataset_tag:{metadata.dataset_tag}"
                 ])
-            dataset.set_metadata({"s3_path": s3_main_path})
+            dataset.set_metadata({"s3_path": s3_main_path ,"dataset_name":metadata.dataset_name , "dataset_id":metadata.dataset_id})
             all_metadata = metadata.dict()
             dataset.set_metadata(all_metadata)
 
             dataset.upload()
             dataset.finalize()
             logger.info(f"Dataset {metadata.dataset_name} registered with ClearML.")
+            
+            logger.info(f"Dataset {metadata.dataset_name} registered with ClearML. ID={ds_id}")
+
         except Exception as e:
             logger.error(f"Failed to register dataset with ClearML: {e}")
