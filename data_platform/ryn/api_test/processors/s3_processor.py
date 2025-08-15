@@ -57,27 +57,6 @@ def main():
             s3_config_target=s3_config_target
         )
         
-        # Create ClearML dataset if processing was successful
-        if result and result.get("status") == "success":
-            unique_id = uuid.uuid4().hex[:8]
-            clearml_dataset = Dataset.create(
-                dataset_project="DatasetIngestion",
-                dataset_name=f"S3_{dataset_name}_{unique_id}",
-                parent_datasets=[],
-                use_current_task=True
-            )
-            
-            # Add metadata as artifact
-            task.upload_artifact("processing_result", result)
-            
-            # If there's a local file path, add it to the dataset
-            if "file_path" in result:
-                clearml_dataset.add_files(result["file_path"])
-                clearml_dataset.upload()
-            
-            clearml_dataset.finalize()
-            logger.info(f"Created ClearML dataset: S3_{dataset_name}_{unique_id}")
-        
         # Mark task as completed
         task.mark_completed()
         
