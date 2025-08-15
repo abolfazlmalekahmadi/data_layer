@@ -49,5 +49,15 @@ class ListDatasetsRequest(BaseModel):
     private_only: bool = False
 
 class DownloadDatasetRequest(BaseModel):
-    dataset_id: str
+    """Request model for downloading datasets from ClearML and S3"""
+    
+    # Dataset identification
+    dataset_name: str
     user_name: str
+    # Optional parameters
+    local_download_path: Optional[str] = None  # If not provided, uses temp directory
+    access_key: Optional[str] = None
+    secret_key: Optional[str] = None
+    endpoint_url: Optional[str] = None
+    bucket_name: Optional[str] = None
+    
