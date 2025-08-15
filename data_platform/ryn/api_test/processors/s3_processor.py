@@ -27,6 +27,8 @@ def main():
         dataset_name = params.get("dataset_name")
         user_name = params.get("user_name")
         private = params.get("private", False)
+        dataset_tag = params.get("dataset_tag")
+        
         
         logger.info(f"Processing S3 dataset: {dataset_name}")
         
@@ -43,7 +45,8 @@ def main():
             s3_file_path=s3_file_path,
             dataset_name=dataset_name,
             user_name=user_name,
-            private=private
+            private=private,
+            dataset_tag=dataset_tag
         )
         
         # Create ClearML dataset if processing was successful

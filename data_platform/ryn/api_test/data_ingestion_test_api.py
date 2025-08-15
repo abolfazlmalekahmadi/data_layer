@@ -493,4 +493,4 @@ async def list_clearml_datasets(project_name: str = CLEARML_PROJECT_NAME):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7029)
+    uvicorn.run(app, host="0.0.0.0", port=7039)
