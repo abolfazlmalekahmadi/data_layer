@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict
 
 class S3DownloadRequest(BaseModel):
     s3_file_path: str
@@ -10,8 +11,7 @@ class S3DownloadRequest(BaseModel):
     secret_key: Optional[str] = None
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
-    dataset_tag : str
-
+    dataset_tag: Optional[str] = Field(default=None, alias="dataset_tag")
 class KaggleDownloadRequest(BaseModel):
     dataset_id: str
     user_name: str
