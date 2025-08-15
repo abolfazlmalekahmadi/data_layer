@@ -64,6 +64,10 @@ class S3Handler:
             print(f"local_file:{local_file}")
           
             print(local_file)
+            
+            print(s3_file_path)
+            
+            
             self.download_file(s3_file_path, local_file, s3_client)
 
             dataset_id = storage_handler.generate_dataset_id()
