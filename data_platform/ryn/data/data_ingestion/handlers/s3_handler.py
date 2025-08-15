@@ -82,7 +82,7 @@ class S3Handler:
             )
             stored_path = storage_handler.store_dataset(local_file, metadata, s3_config=s3_config_target)
 
-            stored_path = storage_handler.store_dataset(local_file, metadata)
+            # stored_path = storage_handler.store_dataset(local_file, metadata)
 
             return {
                 "status": "success",
