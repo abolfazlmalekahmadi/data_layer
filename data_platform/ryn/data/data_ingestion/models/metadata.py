@@ -16,4 +16,4 @@ class DatasetMetadata(BaseModel):
     created_at: str
     file_path: str
     summary: Optional[str] = None
-    dataset_tag : str
+    dataset_tag: str
