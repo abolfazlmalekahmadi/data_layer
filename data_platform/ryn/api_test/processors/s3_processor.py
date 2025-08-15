@@ -15,7 +15,8 @@ def main():
         return
     
     # Get parameters from the task
-    params = task.get_parameters()
+    params = task.get_parameters_as_dict().get('General', {})
+
     
     try:
         # Extract parameters
