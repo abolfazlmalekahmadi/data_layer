@@ -27,7 +27,7 @@ app = FastAPI(
 
 # ClearML configuration
 CLEARML_PROJECT_NAME = "DatasetIngestion"
-DEFAULT_QUEUE_NAME = "dataset_ingestion"
+DEFAULT_QUEUE_NAME = "default"
 
 # ClearML imports
 from clearml.backend_api.session.client import APIClient
