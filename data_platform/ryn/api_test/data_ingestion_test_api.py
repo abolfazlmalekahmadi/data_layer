@@ -50,7 +50,7 @@ class ClearMLTaskManager:
             repo="https://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@github.com/AIP-MLOPS/tools.git",
             branch="data_layer",
             working_directory="data_platform/ryn/",
-            packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy", "fastapi", "logging", "kagglehub", "python-dotenv", "aipmodel==0.2.28"],
+            packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy", "fastapi", "kagglehub", "python-dotenv", "aipmodel==0.2.28"],
             docker=None
         )
 
@@ -680,4 +680,4 @@ async def list_clearml_datasets(project_name: str = CLEARML_PROJECT_NAME):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8009)
+    uvicorn.run(app, host="0.0.0.0", port=8019)
