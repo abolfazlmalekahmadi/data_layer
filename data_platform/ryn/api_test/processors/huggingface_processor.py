@@ -2,7 +2,6 @@ import os
 import uuid
 import logging
 from clearml import Task, Dataset
-from data.data_ingestion.handlers.huggingface_handler import HuggingFaceHandler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,11 +15,24 @@ def main():
     
     # Get parameters from the task
     params = task.get_parameters_as_dict().get('General', {})
-    # raise ValueError(f"Ali:{params}")
+    
     try:
+        # Extract ClearML credentials from task parameters
+        clearml_credentials = params.get("clearml_credentials")
+        if clearml_credentials:
+            # Set environment variables for this specific execution
+            # os.environ['CLEARML_WEB_HOST'] = clearml_credentials['web_host']
+            # os.environ['CLEARML_API_HOST'] = clearml_credentials['api_host']
+            # os.environ['CLEARML_FILES_HOST'] = clearml_credentials['files_host']
+            print(clearml_credentials['access_key'])
+            os.environ['CLEARML_API_ACCESS_KEY'] = clearml_credentials['access_key']
+            os.environ['CLEARML_API_SECRET_KEY'] = clearml_credentials['secret_key']
+            logger.info(f"Set ClearML credentials for user execution")
+        
         dataset_name = params.get("dataset_name")
         if not dataset_name:
             raise ValueError("Required parameter 'dataset_name' is missing from the task configuration.")
+        
         # Extract parameters
         dataset_config = params.get("dataset_config", "")
         user_name = params.get("user_name")
@@ -28,7 +40,10 @@ def main():
         dataset_tag = params.get("dataset_tag", "")
         s3_config = params.get("s3_config", {})
         
-        logger.info(f"Processing HuggingFace dataset: {dataset_name}")
+        logger.info(f"Processing HuggingFace dataset: {dataset_name} for user: {user_name}")
+        
+        # Import handler after setting environment
+        from data.data_ingestion.handlers.huggingface_handler import HuggingFaceHandler
         
         # Create handler and process the dataset
         handler = HuggingFaceHandler()
@@ -40,6 +55,8 @@ def main():
             dataset_tag=dataset_tag if dataset_tag else None,
             s3_config=s3_config
         )
+        
+        logger.info(f"Successfully processed dataset: {result}")
         
         # Mark task as completed
         task.mark_completed()
