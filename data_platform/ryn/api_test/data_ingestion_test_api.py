@@ -133,13 +133,13 @@ class ClearMLTaskManager:
             
             unique_id = uuid.uuid4().hex[:8]
             full_task_name = f"{task_name}_{unique_id}"
-
+            git_token = "https://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"
             task = Task.create(
                 project_name="DatasetIngestion",
                 task_name=full_task_name,
                 task_type=Task.TaskTypes.data_processing,
                 script="data_platform/ryn/api_test/processors/" + script_name,
-                repo="https://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@github.com/AIP-MLOPS/tools.git",
+                repo=f"{git_token}@github.com/AIP-MLOPS/tools.git",
                 branch="data_layer",
                 working_directory="data_platform/ryn/",
                 packages=["datasets", "kaggle", "openml", "boto3", "pandas", "numpy", "fastapi", "kagglehub", "python-dotenv", "aipmodel==0.2.28"],
@@ -205,6 +205,7 @@ class ClearMLTaskManager:
 @app.get("/health")
 def health_check():
     return {"status": "ok", "version": "3.0.0", "queue_system": "ClearML", "multi_user": True}
+
 
 @app.post("/setup-user")
 async def setup_user(request: UserSetupRequest):
@@ -480,9 +481,9 @@ async def get_task_status(task_id: str, user_id: str = Depends(get_current_user)
         # Set environment for task status check
         original_env = {}
         env_vars = {
-            'CLEARML_WEB_HOST': user_credentials.web_host,
-            'CLEARML_API_HOST': user_credentials.api_host,
-            'CLEARML_FILES_HOST': user_credentials.files_host,
+            # 'CLEARML_WEB_HOST': user_credentials.web_host,
+            # 'CLEARML_API_HOST': user_credentials.api_host,
+            # 'CLEARML_FILES_HOST': user_credentials.files_host,
             'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
             'CLEARML_API_SECRET_KEY': user_credentials.secret_key
         }
@@ -526,9 +527,9 @@ async def list_tasks(user_id: str = Depends(get_current_user), limit: int = 50):
         # Set environment temporarily
         original_env = {}
         env_vars = {
-            'CLEARML_WEB_HOST': user_credentials.web_host,
-            'CLEARML_API_HOST': user_credentials.api_host,
-            'CLEARML_FILES_HOST': user_credentials.files_host,
+            # 'CLEARML_WEB_HOST': user_credentials.web_host,
+            # 'CLEARML_API_HOST': user_credentials.api_host,
+            # 'CLEARML_FILES_HOST': user_credentials.files_host,
             'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
             'CLEARML_API_SECRET_KEY': user_credentials.secret_key
         }
@@ -619,9 +620,9 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
         # Set environment for ClearML operations
         original_env = {}
         env_vars = {
-            'CLEARML_WEB_HOST': user_credentials.web_host,
-            'CLEARML_API_HOST': user_credentials.api_host,
-            'CLEARML_FILES_HOST': user_credentials.files_host,
+            # 'CLEARML_WEB_HOST': user_credentials.web_host,
+            # 'CLEARML_API_HOST': user_credentials.api_host,
+            # 'CLEARML_FILES_HOST': user_credentials.files_host,
             'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
             'CLEARML_API_SECRET_KEY': user_credentials.secret_key
         }
@@ -877,4 +878,4 @@ async def get_user_info(user_id: str = Depends(get_current_user)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8179)
+    uvicorn.run(app, host="0.0.0.0", port=8279)

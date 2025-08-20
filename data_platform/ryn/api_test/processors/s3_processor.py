@@ -19,6 +19,18 @@ def main():
 
     
     try:
+        
+        clearml_credentials = params.get("clearml_credentials")
+        if clearml_credentials:
+            # Set environment variables for this specific execution
+            # os.environ['CLEARML_WEB_HOST'] = clearml_credentials['web_host']
+            # os.environ['CLEARML_API_HOST'] = clearml_credentials['api_host']
+            # os.environ['CLEARML_FILES_HOST'] = clearml_credentials['files_host']
+            # print(clearml_credentials['access_key'])
+            os.environ['CLEARML_API_ACCESS_KEY'] = clearml_credentials['access_key']
+            os.environ['CLEARML_API_SECRET_KEY'] = clearml_credentials['secret_key']
+            logger.info(f"Set ClearML credentials for user execution")
+        
         # Extract parameters
         access_key = params.get("access_key")
         secret_key = params.get("secret_key")
