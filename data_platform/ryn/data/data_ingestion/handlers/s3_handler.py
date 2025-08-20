@@ -67,8 +67,16 @@ class S3Handler:
             print(s3_file_path)
             
             
-            
-            self.download_file(s3_file_path, local_file, s3_client)
+            from aipmodel.model_registry import CephS3Manager
+            manager = CephS3Manager(
+                        endpoint_url=self.endpoint_url,
+                        access_key=self.access_key,
+                        secret_key=self.secret_key,
+                        bucket_name=self.bucket_name
+                    )
+            print("0"*10)
+            manager.download(s3_file_path , local_file )
+            # self.download_file(s3_file_path, local_file, s3_client)
 
             dataset_id = storage_handler.generate_dataset_id()
             metadata = DatasetMetadata(
