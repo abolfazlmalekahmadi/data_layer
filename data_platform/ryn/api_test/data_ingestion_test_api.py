@@ -52,7 +52,7 @@ class S3Credentials(BaseModel):
 class UserSetupRequest(BaseModel):
     user_id: str
     clearml_credentials: ClearMLCredentials
-    default_s3_config: S3Credentials
+    # default_s3_config: S3Credentials
 
 class UserCredentialsManager:
     """Manages per-user ClearML credentials in memory."""
@@ -329,90 +329,90 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest, user_id: str = 
         logger.error(f"Error creating HuggingFace ingestion task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
-@app.post("/kaggle")
-async def ingest_kaggle(request: KaggleDownloadRequest, user_id: str = Depends(get_current_user)):
-    """Create and enqueue a ClearML task for Kaggle dataset ingestion."""
-    try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
+# @app.post("/kaggle")
+# async def ingest_kaggle(request: KaggleDownloadRequest, user_id: str = Depends(get_current_user)):
+#     """Create and enqueue a ClearML task for Kaggle dataset ingestion."""
+#     try:
+#         user_credentials = credentials_manager.get_user_credentials(user_id)
+#         if not user_credentials:
+#             raise HTTPException(status_code=404, detail="User credentials not found")
         
-        # Prepare task parameters
-        parameters = {
-            "task_type": "kaggle",
-            "dataset_id": request.dataset_id,
-            "user_name": request.user_name,
-            "kaggle_username": request.kaggle_username,
-            "kaggle_key": request.kaggle_key,
-            "private": request.private
-        }
+#         # Prepare task parameters
+#         parameters = {
+#             "task_type": "kaggle",
+#             "dataset_id": request.dataset_id,
+#             "user_name": request.user_name,
+#             "kaggle_username": request.kaggle_username,
+#             "kaggle_key": request.kaggle_key,
+#             "private": request.private
+#         }
         
-        # Create ClearML task with user-specific credentials
-        task = ClearMLTaskManager.create_task_with_user_credentials(
-            task_name=f"Kaggle_{request.dataset_id}",
-            script_name="kaggle_processor.py",
-            parameters=parameters,
-            user_credentials=user_credentials
-        )
+#         # Create ClearML task with user-specific credentials
+#         task = ClearMLTaskManager.create_task_with_user_credentials(
+#             task_name=f"Kaggle_{request.dataset_id}",
+#             script_name="kaggle_processor.py",
+#             parameters=parameters,
+#             user_credentials=user_credentials
+#         )
         
-        # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+#         # Enqueue the task with user credentials
+#         task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
         
-        return {
-            "status": "success",
-            "message": f"Kaggle dataset ingestion task created and enqueued",
-            "task_id": task_id,
-            "dataset_id": request.dataset_id,
-            "user_id": user_id
-        }
+#         return {
+#             "status": "success",
+#             "message": f"Kaggle dataset ingestion task created and enqueued",
+#             "task_id": task_id,
+#             "dataset_id": request.dataset_id,
+#             "user_id": user_id
+#         }
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating Kaggle ingestion task: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error creating Kaggle ingestion task: {e}")
+#         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
-@app.post("/openml")
-async def ingest_openml(request: OpenMLDownloadRequest, user_id: str = Depends(get_current_user)):
-    """Create and enqueue a ClearML task for OpenML dataset ingestion."""
-    try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
+# @app.post("/openml")
+# async def ingest_openml(request: OpenMLDownloadRequest, user_id: str = Depends(get_current_user)):
+#     """Create and enqueue a ClearML task for OpenML dataset ingestion."""
+#     try:
+#         user_credentials = credentials_manager.get_user_credentials(user_id)
+#         if not user_credentials:
+#             raise HTTPException(status_code=404, detail="User credentials not found")
         
-        # Prepare task parameters
-        parameters = {
-            "task_type": "openml",
-            "dataset_id": request.dataset_id,
-            "dataset_name": request.dataset_name,
-            "user_name": request.user_name,
-            "private": request.private
-        }
+#         # Prepare task parameters
+#         parameters = {
+#             "task_type": "openml",
+#             "dataset_id": request.dataset_id,
+#             "dataset_name": request.dataset_name,
+#             "user_name": request.user_name,
+#             "private": request.private
+#         }
         
-        # Create ClearML task with user-specific credentials
-        task = ClearMLTaskManager.create_task_with_user_credentials(
-            task_name=f"OpenML_{request.dataset_name or request.dataset_id}",
-            script_name="openml_processor.py",
-            parameters=parameters,
-            user_credentials=user_credentials
-        )
+#         # Create ClearML task with user-specific credentials
+#         task = ClearMLTaskManager.create_task_with_user_credentials(
+#             task_name=f"OpenML_{request.dataset_name or request.dataset_id}",
+#             script_name="openml_processor.py",
+#             parameters=parameters,
+#             user_credentials=user_credentials
+#         )
         
-        # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+#         # Enqueue the task with user credentials
+#         task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
         
-        return {
-            "status": "success",
-            "message": f"OpenML dataset ingestion task created and enqueued",
-            "task_id": task_id,
-            "dataset_id": request.dataset_id,
-            "user_id": user_id
-        }
+#         return {
+#             "status": "success",
+#             "message": f"OpenML dataset ingestion task created and enqueued",
+#             "task_id": task_id,
+#             "dataset_id": request.dataset_id,
+#             "user_id": user_id
+#         }
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating OpenML ingestion task: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error creating OpenML ingestion task: {e}")
+#         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
 @app.post("/s3")
 async def ingest_s3(request: Request, s3_request: S3DownloadRequest, user_id: str = Depends(get_current_user)):
@@ -1080,9 +1080,9 @@ async def get_user_info(user_id: str = Depends(get_current_user)):
         
         return {
             "user_id": user_id,
-            "clearml_web_host": user_credentials.web_host,
-            "clearml_api_host": user_credentials.api_host,
-            "clearml_files_host": user_credentials.files_host,
+            # "clearml_web_host": user_credentials.web_host,
+            # "clearml_api_host": user_credentials.api_host,
+            # "clearml_files_host": user_credentials.files_host,
             "has_credentials": True
         }
     except Exception as e:
@@ -1091,4 +1091,4 @@ async def get_user_info(user_id: str = Depends(get_current_user)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8279)
+    uvicorn.run(app, host="0.0.0.0", port=8379)
