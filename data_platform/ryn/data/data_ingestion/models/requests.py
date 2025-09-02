@@ -16,6 +16,9 @@ class S3DownloadRequest(BaseModel):
     access_key_target:Optional[str] = None
     endpoint_url_target:Optional[str] = None
     bucket_name_target:Optional[str] = None
+    clearml_access_key: str
+    clearml_secret_key: str
+    
     
 class KaggleDownloadRequest(BaseModel):
     dataset_id: str
@@ -36,6 +39,9 @@ class HuggingFaceDownloadRequest(BaseModel):
     access_key: str
     secret_key: str
     bucket_name: str
+    clearml_access_key: str
+    clearml_secret_key: str
+    
 
 class OpenMLDownloadRequest(BaseModel):
     dataset_id: int
@@ -45,9 +51,11 @@ class OpenMLDownloadRequest(BaseModel):
     dataset_tag : str
 
 class ListDatasetsRequest(BaseModel):
+    clearml_access_key: str
+    clearml_secret_key: str
     user_name: Optional[str] = None
-    private_only: bool = False
-
+    private_only: Optional[bool] = False
+    
 class DownloadDatasetRequest(BaseModel):
     """Request model for downloading datasets from ClearML and S3"""
     
@@ -55,6 +63,8 @@ class DownloadDatasetRequest(BaseModel):
     dataset_name: str
     user_name: str
     # Optional parameters
+    clearml_access_key: str
+    clearml_secret_key: str
     local_download_path: Optional[str] = None  # If not provided, uses temp directory
     access_key: Optional[str] = None
     secret_key: Optional[str] = None

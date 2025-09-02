@@ -2,8 +2,7 @@ import asyncio
 import uuid
 import logging
 from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import os
 import tempfile
@@ -27,18 +26,12 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Multi-User Dataset Ingestion API with ClearML",
-    description="API to download datasets from various sources using ClearML agents with per-user credentials.",
+    description="API to download datasets from various sources using ClearML agents with direct credentials.",
     version="3.0.0",
 )
 
-# Security
-security = HTTPBearer()
-
-# New models for user credentials and setup
+# Updated models for direct credential usage
 class ClearMLCredentials(BaseModel):
-    # web_host: str
-    # api_host: str 
-    # files_host: str
     access_key: str
     secret_key: str
 
@@ -47,58 +40,6 @@ class S3Credentials(BaseModel):
     secret_key: Optional[str] = None
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
-    
-
-class UserSetupRequest(BaseModel):
-    user_id: str
-    clearml_credentials: ClearMLCredentials
-    # default_s3_config: S3Credentials
-
-class UserCredentialsManager:
-    """Manages per-user ClearML credentials in memory."""
-    
-    def __init__(self):
-        self._user_credentials: Dict[str, ClearMLCredentials] = {}
-        self._user_tokens: Dict[str, str] = {}  # token -> user_id mapping
-    
-    def setup_user(self, user_id: str, credentials: ClearMLCredentials) -> str:
-        """Setup credentials for a user and return an access token."""
-        token = f"user_{user_id}_{uuid.uuid4().hex[:16]}"
-        self._user_credentials[user_id] = credentials
-        self._user_tokens[token] = user_id
-        logger.info(f"Setup credentials for user: {user_id}")
-        return token
-    
-    def get_user_from_token(self, token: str) -> Optional[str]:
-        """Get user_id from token."""
-        return self._user_tokens.get(token)
-    
-    def get_user_credentials(self, user_id: str) -> Optional[ClearMLCredentials]:
-        """Get credentials for a user."""
-        return self._user_credentials.get(user_id)
-    
-    def remove_user(self, user_id: str):
-        """Remove user credentials and invalidate all their tokens."""
-        if user_id in self._user_credentials:
-            del self._user_credentials[user_id]
-        
-        # Remove all tokens for this user
-        tokens_to_remove = [token for token, uid in self._user_tokens.items() if uid == user_id]
-        for token in tokens_to_remove:
-            del self._user_tokens[token]
-        
-        logger.info(f"Removed credentials for user: {user_id}")
-
-# Global credentials manager
-credentials_manager = UserCredentialsManager()
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    """Extract user from authorization token."""
-    token = credentials.credentials
-    user_id = credentials_manager.get_user_from_token(token)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    return user_id
 
 class ClearMLTaskManager:
     """Manages ClearML task creation and enqueueing for dataset ingestion operations."""
@@ -108,18 +49,15 @@ class ClearMLTaskManager:
         task_name: str, 
         script_name: str, 
         parameters: Dict[str, Any],
-        user_credentials: ClearMLCredentials
+        user_credentials: Dict[str, str]
     ) -> 'Task':
         """Create a ClearML task with specific user credentials."""
         
         # Set environment variables for this specific task creation
         original_env = {}
         env_vars = {
-            # 'CLEARML_WEB_HOST': user_credentials.web_host,
-            # 'CLEARML_API_HOST': user_credentials.api_host,
-            # 'CLEARML_FILES_HOST': user_credentials.files_host,
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
+            'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
         }
         
         # Backup original environment
@@ -147,7 +85,7 @@ class ClearMLTaskManager:
             )
 
             # Add user credentials to task parameters so the processor can use them
-            parameters["clearml_credentials"] = user_credentials.dict()
+            parameters["clearml_credentials"] = user_credentials
             task.connect(parameters)
 
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
@@ -164,7 +102,7 @@ class ClearMLTaskManager:
     @staticmethod
     def enqueue_task_with_credentials(
         task: 'Task', 
-        user_credentials: ClearMLCredentials,
+        user_credentials: Dict[str, str],
         queue_name: str = "default"
     ) -> str:
         """Enqueue task with user-specific credentials."""
@@ -172,11 +110,8 @@ class ClearMLTaskManager:
         # Set environment for enqueueing
         original_env = {}
         env_vars = {
-            # 'CLEARML_WEB_HOST': user_credentials.web_host,
-            # 'CLEARML_API_HOST': user_credentials.api_host,
-            # 'CLEARML_FILES_HOST': user_credentials.files_host,
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
+            'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
         }
         
         for key in env_vars:
@@ -206,51 +141,20 @@ class ClearMLTaskManager:
 def health_check():
     return {"status": "ok", "version": "3.0.0", "queue_system": "ClearML", "multi_user": True}
 
+# Updated model for queues request
+class ListQueuesRequest(BaseModel):
+    clearml_access_key: str
+    clearml_secret_key: str
 
-@app.post("/setup-user")
-async def setup_user(request: UserSetupRequest):
-    """Setup ClearML credentials for a user and return access token."""
+@app.post("/queues")
+async def list_queues(request: ListQueuesRequest):
+    """List available ClearML queues using provided credentials."""
     try:
-        token = credentials_manager.setup_user(request.user_id, request.clearml_credentials)
-        return {
-            "status": "success",
-            "message": f"User '{request.user_id}' setup successfully",
-            "access_token": token,
-            "token_type": "bearer"
-        }
-    except Exception as e:
-        logger.error(f"Error setting up user: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to setup user: {str(e)}")
-
-@app.delete("/remove-user")
-async def remove_user(user_id: str = Depends(get_current_user)):
-    """Remove user credentials and invalidate all tokens."""
-    try:
-        credentials_manager.remove_user(user_id)
-        return {
-            "status": "success",
-            "message": f"User '{user_id}' removed successfully"
-        }
-    except Exception as e:
-        logger.error(f"Error removing user: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to remove user: {str(e)}")
-
-@app.get("/queues")
-async def list_queues(user_id: str = Depends(get_current_user)):
-    """List available ClearML queues for the authenticated user."""
-    try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
         # Set environment temporarily to list queues
         original_env = {}
         env_vars = {
-            # 'CLEARML_WEB_HOST': user_credentials.web_host,
-            # 'CLEARML_API_HOST': user_credentials.api_host,
-            # 'CLEARML_FILES_HOST': user_credentials.files_host,
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
         }
         
         for key in env_vars:
@@ -274,20 +178,14 @@ async def list_queues(user_id: str = Depends(get_current_user)):
                 else:
                     os.environ[key] = value
                     
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error listing queues: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list queues: {str(e)}")
 
 @app.post("/huggingface")
-async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest, user_id: str = Depends(get_current_user)):
+async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
     """Create and enqueue a ClearML task for HuggingFace dataset ingestion."""
     try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
         # Prepare task parameters
         parameters = {
             "task_type": "huggingface",
@@ -301,8 +199,13 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest, user_id: str = 
                 "access_key": hf_req.access_key,
                 "secret_key": hf_req.secret_key,
                 "bucket_name": hf_req.bucket_name,
+            },
+            "clearml_config": {
+                "access_key": hf_req.clearml_access_key,
+                "secret_key": hf_req.clearml_secret_key
             }
         }
+        user_credentials = parameters["clearml_config"]
         
         # Create ClearML task with user-specific credentials
         task = ClearMLTaskManager.create_task_with_user_credentials(
@@ -320,7 +223,7 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest, user_id: str = 
             "message": f"HuggingFace dataset ingestion task created and enqueued",
             "task_id": task_id,
             "dataset_name": hf_req.dataset_name,
-            "user_id": user_id
+            "user_name": hf_req.user_name
         }
         
     except HTTPException:
@@ -329,99 +232,111 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest, user_id: str = 
         logger.error(f"Error creating HuggingFace ingestion task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
-# @app.post("/kaggle")
-# async def ingest_kaggle(request: KaggleDownloadRequest, user_id: str = Depends(get_current_user)):
-#     """Create and enqueue a ClearML task for Kaggle dataset ingestion."""
-#     try:
-#         user_credentials = credentials_manager.get_user_credentials(user_id)
-#         if not user_credentials:
-#             raise HTTPException(status_code=404, detail="User credentials not found")
+@app.post("/kaggle")
+async def ingest_kaggle(request: KaggleDownloadRequest):
+    """Create and enqueue a ClearML task for Kaggle dataset ingestion."""
+    try:
+        # Prepare task parameters
+        parameters = {
+            "task_type": "kaggle",
+            "dataset_id": request.dataset_id,
+            "user_name": request.user_name,
+            "kaggle_username": request.kaggle_username,
+            "kaggle_key": request.kaggle_key,
+            "private": request.private,
+            "dataset_tag": request.dataset_tag or "",
+            "s3_config": {
+                "endpoint_url": request.endpoint_url,
+                "access_key": request.access_key,
+                "secret_key": request.secret_key,
+                "bucket_name": request.bucket_name,
+            },
+            "clearml_config": {
+                "access_key": request.clearml_access_key,
+                "secret_key": request.clearml_secret_key
+            }
+        }
+        user_credentials = parameters["clearml_config"]
         
-#         # Prepare task parameters
-#         parameters = {
-#             "task_type": "kaggle",
-#             "dataset_id": request.dataset_id,
-#             "user_name": request.user_name,
-#             "kaggle_username": request.kaggle_username,
-#             "kaggle_key": request.kaggle_key,
-#             "private": request.private
-#         }
+        # Create ClearML task with user-specific credentials
+        task = ClearMLTaskManager.create_task_with_user_credentials(
+            task_name=f"Kaggle_{request.dataset_id}",
+            script_name="kaggle_processor.py",
+            parameters=parameters,
+            user_credentials=user_credentials
+        )
         
-#         # Create ClearML task with user-specific credentials
-#         task = ClearMLTaskManager.create_task_with_user_credentials(
-#             task_name=f"Kaggle_{request.dataset_id}",
-#             script_name="kaggle_processor.py",
-#             parameters=parameters,
-#             user_credentials=user_credentials
-#         )
+        # Enqueue the task with user credentials
+        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
         
-#         # Enqueue the task with user credentials
-#         task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+        return {
+            "status": "success",
+            "message": f"Kaggle dataset ingestion task created and enqueued",
+            "task_id": task_id,
+            "dataset_id": request.dataset_id,
+            "user_name": request.user_name
+        }
         
-#         return {
-#             "status": "success",
-#             "message": f"Kaggle dataset ingestion task created and enqueued",
-#             "task_id": task_id,
-#             "dataset_id": request.dataset_id,
-#             "user_id": user_id
-#         }
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"Error creating Kaggle ingestion task: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating Kaggle ingestion task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
-# @app.post("/openml")
-# async def ingest_openml(request: OpenMLDownloadRequest, user_id: str = Depends(get_current_user)):
-#     """Create and enqueue a ClearML task for OpenML dataset ingestion."""
-#     try:
-#         user_credentials = credentials_manager.get_user_credentials(user_id)
-#         if not user_credentials:
-#             raise HTTPException(status_code=404, detail="User credentials not found")
+@app.post("/openml")
+async def ingest_openml(request: OpenMLDownloadRequest):
+    """Create and enqueue a ClearML task for OpenML dataset ingestion."""
+    try:
+        # Prepare task parameters
+        parameters = {
+            "task_type": "openml",
+            "dataset_id": request.dataset_id,
+            "dataset_name": request.dataset_name,
+            "user_name": request.user_name,
+            "private": request.private,
+            "dataset_tag": request.dataset_tag or "",
+            "s3_config": {
+                "endpoint_url": request.endpoint_url,
+                "access_key": request.access_key,
+                "secret_key": request.secret_key,
+                "bucket_name": request.bucket_name,
+            },
+            "clearml_config": {
+                "access_key": request.clearml_access_key,
+                "secret_key": request.clearml_secret_key
+            }
+        }
+        user_credentials = parameters["clearml_config"]
         
-#         # Prepare task parameters
-#         parameters = {
-#             "task_type": "openml",
-#             "dataset_id": request.dataset_id,
-#             "dataset_name": request.dataset_name,
-#             "user_name": request.user_name,
-#             "private": request.private
-#         }
+        # Create ClearML task with user-specific credentials
+        task = ClearMLTaskManager.create_task_with_user_credentials(
+            task_name=f"OpenML_{request.dataset_name or request.dataset_id}",
+            script_name="openml_processor.py",
+            parameters=parameters,
+            user_credentials=user_credentials
+        )
         
-#         # Create ClearML task with user-specific credentials
-#         task = ClearMLTaskManager.create_task_with_user_credentials(
-#             task_name=f"OpenML_{request.dataset_name or request.dataset_id}",
-#             script_name="openml_processor.py",
-#             parameters=parameters,
-#             user_credentials=user_credentials
-#         )
+        # Enqueue the task with user credentials
+        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
         
-#         # Enqueue the task with user credentials
-#         task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+        return {
+            "status": "success",
+            "message": f"OpenML dataset ingestion task created and enqueued",
+            "task_id": task_id,
+            "dataset_id": request.dataset_id,
+            "user_name": request.user_name
+        }
         
-#         return {
-#             "status": "success",
-#             "message": f"OpenML dataset ingestion task created and enqueued",
-#             "task_id": task_id,
-#             "dataset_id": request.dataset_id,
-#             "user_id": user_id
-#         }
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"Error creating OpenML ingestion task: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating OpenML ingestion task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
 @app.post("/s3")
-async def ingest_s3(request: Request, s3_request: S3DownloadRequest, user_id: str = Depends(get_current_user)):
+async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
     """Create and enqueue a ClearML task for S3 dataset ingestion."""
     try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
         raw_body = await request.body()
         logger.info(f"Raw request body: {raw_body}")
         
@@ -442,8 +357,13 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest, user_id: st
                 "access_key_target": s3_request.access_key_target,
                 "secret_key_target": s3_request.secret_key_target,
                 "bucket_name_target": s3_request.bucket_name_target,
+            },
+            "clearml_config": {
+                "access_key": s3_request.clearml_access_key,
+                "secret_key": s3_request.clearml_secret_key
             }
         }
+        user_credentials = parameters["clearml_config"]
         
         # Create ClearML task with user-specific credentials
         task = ClearMLTaskManager.create_task_with_user_credentials(
@@ -461,7 +381,7 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest, user_id: st
             "message": f"S3 dataset ingestion task created and enqueued",
             "task_id": task_id,
             "dataset_name": s3_request.dataset_name,
-            "user_id": user_id
+            "user_name": s3_request.user_name
         }
     
     except HTTPException:
@@ -470,22 +390,21 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest, user_id: st
         logger.error(f"Error creating S3 ingestion task: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
-@app.get("/task-status/{task_id}")
-async def get_task_status(task_id: str, user_id: str = Depends(get_current_user)):
-    """Get the status of a ClearML task."""
+# Updated model for task status request
+class TaskStatusRequest(BaseModel):
+    task_id: str
+    clearml_access_key: str
+    clearml_secret_key: str
+
+@app.post("/task-status")
+async def get_task_status(request: TaskStatusRequest):
+    """Get the status of a ClearML task using provided credentials."""
     try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
         # Set environment for task status check
         original_env = {}
         env_vars = {
-            # 'CLEARML_WEB_HOST': user_credentials.web_host,
-            # 'CLEARML_API_HOST': user_credentials.api_host,
-            # 'CLEARML_FILES_HOST': user_credentials.files_host,
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
         }
         
         for key in env_vars:
@@ -494,15 +413,14 @@ async def get_task_status(task_id: str, user_id: str = Depends(get_current_user)
         
         try:
             from clearml import Task
-            task = Task.get_task(task_id=task_id)
+            task = Task.get_task(task_id=request.task_id)
             return {
-                "task_id": task_id,
+                "task_id": request.task_id,
                 "name": task.name,
                 "status": task.get_status(),
                 "project": task.get_project_name(),
                 "created": task.data.created,
-                "last_update": task.data.last_update,
-                "user_id": user_id
+                "last_update": task.data.last_update
             }
         finally:
             # Restore environment
@@ -516,22 +434,21 @@ async def get_task_status(task_id: str, user_id: str = Depends(get_current_user)
         logger.error(f"Error getting task status: {e}")
         raise HTTPException(status_code=404, detail=f"Task not found or error retrieving status: {str(e)}")
 
-@app.get("/tasks")
-async def list_tasks(user_id: str = Depends(get_current_user), limit: int = 50):
-    """List recent ClearML tasks for the authenticated user."""
+# Updated model for listing tasks
+class ListTasksRequest(BaseModel):
+    clearml_access_key: str
+    clearml_secret_key: str
+    limit: int = 50
+
+@app.post("/tasks")
+async def list_tasks(request: ListTasksRequest):
+    """List recent ClearML tasks using provided credentials."""
     try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
         # Set environment temporarily
         original_env = {}
         env_vars = {
-            # 'CLEARML_WEB_HOST': user_credentials.web_host,
-            # 'CLEARML_API_HOST': user_credentials.api_host,
-            # 'CLEARML_FILES_HOST': user_credentials.files_host,
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
         }
         
         for key in env_vars:
@@ -552,7 +469,7 @@ async def list_tasks(user_id: str = Depends(get_current_user), limit: int = 50):
             # Get tasks for the project
             tasks_response = client.tasks.get_all(
                 project=[project_id],
-                page_size=limit,
+                page_size=request.limit,
                 order_by=["-created"]
             )
             
@@ -567,7 +484,7 @@ async def list_tasks(user_id: str = Depends(get_current_user), limit: int = 50):
                     "type": task.type
                 })
             
-            return {"tasks": tasks, "total": len(tasks), "user_id": user_id}
+            return {"tasks": tasks, "total": len(tasks)}
         finally:
             # Restore environment
             for key, value in original_env.items():
@@ -576,55 +493,24 @@ async def list_tasks(user_id: str = Depends(get_current_user), limit: int = 50):
                 else:
                     os.environ[key] = value
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error listing tasks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list tasks: {str(e)}")
 
-# @app.post("/list-datasets")
-# async def list_datasets(request: ListDatasetsRequest, user_id: str = Depends(get_current_user)):
-#     """List available datasets for the authenticated user."""
-#     storage_handler = None
-#     try:
-#         storage_handler = DatasetStorageHandler("temp_mount")
-#         datasets = []
-#         for metadata_file in storage_handler.metadata_dir.glob("*.json"):
-#             metadata = storage_handler.load_metadata(metadata_file.stem)
-#             # Filter by authenticated user
-#             if metadata.user_name != user_id:
-#                 continue
-#             if request.user_name and metadata.user_name != request.user_name:
-#                 continue
-#             if request.private_only and not metadata.private:
-#                 continue
-#             datasets.append(metadata)
-#         return {"datasets": datasets, "total": len(datasets), "user_id": user_id}
-#     except Exception as e:
-#         logger.error(f"Error listing datasets: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to list datasets: {e}")
-#     finally:
-#         if storage_handler:
-#             storage_handler.unmount()
-# # Add these new imports at the top of your file
+# Updated model for listing ClearML datasets
+class ListClearMLDatasetsRequest(BaseModel):
+    clearml_access_key: str
+    clearml_secret_key: str
 
- 
-@app.get("/clearml-datasets")
-async def list_clearml_datasets(user_id: str = Depends(get_current_user)):
-    """List ClearML datasets for the authenticated user."""
+@app.post("/clearml-datasets")
+async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
+    """List ClearML datasets using provided credentials."""
     try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
         # Set environment temporarily
         original_env = {}
         env_vars = {
-            # 'CLEARML_WEB_HOST': user_credentials.web_host,
-            # 'CLEARML_API_HOST': user_credentials.api_host,
-            # 'CLEARML_FILES_HOST': user_credentials.files_host,
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
         }
         
         for key in env_vars:
@@ -650,7 +536,7 @@ async def list_clearml_datasets(user_id: str = Depends(get_current_user)):
                     "size": dataset_dict.get("size", 0)
                 })
             
-            return {"datasets": dataset_list, "total": len(dataset_list), "user_id": user_id}
+            return {"datasets": dataset_list, "total": len(dataset_list)}
         finally:
             # Restore environment
             for key, value in original_env.items():
@@ -659,12 +545,9 @@ async def list_clearml_datasets(user_id: str = Depends(get_current_user)):
                 else:
                     os.environ[key] = value
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error listing ClearML datasets: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list ClearML datasets: {str(e)}")
-
 
 import zipfile
 import io
@@ -675,12 +558,15 @@ import boto3
 from botocore.exceptions import ClientError
 import json
 
-# Add this new model for download options
+# Updated model for download dataset request with direct credentials
 class DownloadDatasetRequest(BaseModel):
     dataset_name: str
-    access_key: str
-    secret_key: str
-    endpoint_url: str
+    user_name: str  # Added user_name for filtering
+    clearml_access_key: str
+    clearml_secret_key: str
+    s3_access_key: str
+    s3_secret_key: str
+    s3_endpoint_url: str
     download_method: str = "presigned_urls"  # Options: "presigned_urls", "stream_zip", "direct_stream"
     expiration: int = 3600  # For presigned URLs, expiration in seconds (default 1 hour)
 
@@ -818,22 +704,17 @@ async def stream_files_info(s3_client, bucket_name: str, s3_key: str, expiration
         logger.error(f"Error getting files info for streaming: {e}")
         raise
 
-# Replace your existing download-dataset endpoint with this enhanced version
 @app.post("/download-dataset")
-async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depends(get_current_user)):
-    """Download a dataset with multiple download methods for the authenticated user."""
+async def download_dataset(request: DownloadDatasetRequest):
+    """Download a dataset with multiple download methods using provided credentials."""
     try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
-        logger.info(f"Starting download for dataset: {request.dataset_name}, user: {user_id}, method: {request.download_method}")
+        logger.info(f"Starting download for dataset: {request.dataset_name}, user: {request.user_name}, method: {request.download_method} , clearml_access: {request.clearml_access_key} , clearml_secret: {request.clearml_secret_key} ")
         
         # Set environment for ClearML operations
         original_env = {}
         env_vars = {
-            'CLEARML_API_ACCESS_KEY': user_credentials.access_key,
-            'CLEARML_API_SECRET_KEY': user_credentials.secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
         }
         
         for key in env_vars:
@@ -843,7 +724,7 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
         try:
             from clearml import Dataset
             
-            # Find the ClearML dataset by name (same logic as before)
+            # Find the ClearML dataset by name
             datasets = Dataset.list_datasets(
                 partial_name=request.dataset_name,
                 only_completed=True
@@ -866,7 +747,7 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
                     
                     metadata_name_match = dataset_metadata.get("dataset_name") == request.dataset_name
                     dict_name_match = dataset_dict.get("name") == request.dataset_name
-                    user_match = dataset_metadata.get("user_name") == user_id
+                    user_match = dataset_metadata.get("user_name") == request.user_name
                     has_s3_path = dataset_metadata.get("s3_path") is not None
                     
                     if (metadata_name_match or dict_name_match) and user_match and has_s3_path:
@@ -881,7 +762,7 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
             if not target_dataset or not target_dataset_obj:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Dataset '{request.dataset_name}' not found for user '{user_id}'"
+                    detail=f"Dataset '{request.dataset_name}' not found for user '{request.user_name}'"
                 )
             
             # Extract S3 information
@@ -908,9 +789,9 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
             # Initialize S3 client
             s3_client = boto3.client(
                 "s3",
-                aws_access_key_id=request.access_key,
-                aws_secret_access_key=request.secret_key,
-                endpoint_url=request.endpoint_url
+                aws_access_key_id=request.s3_access_key,
+                aws_secret_access_key=request.s3_secret_key,
+                endpoint_url=request.s3_endpoint_url
             )
             
             # Handle different download methods
@@ -925,7 +806,7 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
                     "dataset_info": {
                         "dataset_id": target_dataset["id"],
                         "dataset_name": request.dataset_name,
-                        "user_name": user_id,
+                        "user_name": request.user_name,
                         "clearml_project": target_dataset["project"],
                         "created": target_dataset["created"]
                     },
@@ -971,7 +852,7 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
                     "dataset_info": {
                         "dataset_id": target_dataset["id"],
                         "dataset_name": request.dataset_name,
-                        "user_name": user_id,
+                        "user_name": request.user_name,
                         "clearml_project": target_dataset["project"],
                         "created": target_dataset["created"]
                     },
@@ -1014,31 +895,87 @@ async def download_dataset(request: DownloadDatasetRequest, user_id: str = Depen
             detail=f"Internal error during dataset download: {str(e)}"
         )
 
-# # Add this new endpoint for streaming individual files
-# @app.get("/stream-file/{bucket_name}/{file_key:path}")
-# async def stream_file(bucket_name: str, file_key: str, user_id: str = Depends(get_current_user)):
-#     """Stream a single file from S3 through the API."""
-#     try:
-#         user_credentials = credentials_manager.get_user_credentials(user_id)
-#         if not user_credentials:
-#             raise HTTPException(status_code=404, detail="User credentials not found")
+# Updated model for listing datasets with direct credentials
+# class ListDatasetsRequest(BaseModel):
+#     clearml_access_key: str
+#     clearml_secret_key: str
+#     user_name: Optional[str] = None
+#     private_only: Optional[bool] = False
+
+@app.post("/list-datasets")
+async def list_datasets(request: ListDatasetsRequest):
+    """List available datasets using provided credentials."""
+    try:
+        # Set environment for ClearML operations
+        original_env = {}
+        env_vars = {
+            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+        }
         
-#         # Note: In a production environment, you should validate that the user has access to this specific file
-#         # This could be done by checking if the file belongs to a dataset owned by the user
+        for key in env_vars:
+            original_env[key] = os.environ.get(key)
+            os.environ[key] = env_vars[key]
         
-#         # For now, we'll need S3 credentials to be passed or stored with user
-#         # This is a simplified version - you might want to store S3 credentials with user setup
-        
-#         raise HTTPException(
-#             status_code=501, 
-#             detail="File streaming endpoint needs S3 credentials. Use presigned_urls method instead."
-#         )
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         logger.error(f"Error streaming file: {e}")
-#         raise HTTPException(status_code=500, detail=f"Failed to stream file: {str(e)}")
+        try:
+            from clearml import Dataset
+            
+            # Get all datasets from the project
+            datasets = Dataset.list_datasets(
+                dataset_project="DatasetIngestion",
+                partial_name="",
+                only_completed=True
+            )
+            print(datasets)
+            
+            filtered_datasets = []
+            
+            for dataset_dict in datasets:
+                try:
+                    dataset_obj = Dataset.get(dataset_id=dataset_dict["id"])
+                    dataset_metadata = dataset_obj.get_metadata()
+                    
+                    # Apply filters
+                    if request.user_name and dataset_metadata.get("user_name") != request.user_name:
+                        continue
+                    if request.private_only and not dataset_metadata.get("private", False):
+                        continue
+                    
+                    filtered_datasets.append({
+                        "id": dataset_dict.get("id"),
+                        "name": dataset_dict.get("name"),
+                        "project": dataset_dict.get("project"),
+                        "created": dataset_dict.get("created"),
+                        "status": dataset_dict.get("status"),
+                        "size": dataset_dict.get("size", 0),
+                        "metadata": {
+                            "dataset_name": dataset_metadata.get("dataset_name"),
+                            "user_name": dataset_metadata.get("user_name"),
+                            "private": dataset_metadata.get("private", False),
+                            "dataset_tag": dataset_metadata.get("dataset_tag", ""),
+                            "s3_path": dataset_metadata.get("s3_path")
+                        }
+                    })
+                    
+                except Exception as e:
+                    logger.warning(f"Could not get metadata for dataset {dataset_dict['id']}: {e}")
+                    continue
+            
+            return {"datasets": filtered_datasets, "total": len(filtered_datasets)}
+            
+        finally:
+            # Restore environment
+            for key, value in original_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+                    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing datasets: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list datasets: {e}")
 
 # Add this endpoint to get download methods information
 @app.get("/download-methods")
@@ -1067,28 +1004,7 @@ async def get_download_methods():
         },
         "recommendation": "Use 'presigned_urls' for best performance with large datasets"
     }
-  
-  
-   
-@app.get("/user-info")
-async def get_user_info(user_id: str = Depends(get_current_user)):
-    """Get information about the authenticated user."""
-    try:
-        user_credentials = credentials_manager.get_user_credentials(user_id)
-        if not user_credentials:
-            raise HTTPException(status_code=404, detail="User credentials not found")
-        
-        return {
-            "user_id": user_id,
-            # "clearml_web_host": user_credentials.web_host,
-            # "clearml_api_host": user_credentials.api_host,
-            # "clearml_files_host": user_credentials.files_host,
-            "has_credentials": True
-        }
-    except Exception as e:
-        logger.error(f"Error getting user info: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get user info: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8379)
+    uvicorn.run(app, host="0.0.0.0", port=8279)
