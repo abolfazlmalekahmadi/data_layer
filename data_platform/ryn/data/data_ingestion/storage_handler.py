@@ -174,7 +174,7 @@ class DatasetStorageHandler:
             os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
             os.environ['CLEARML_API_ACCESS_KEY'] = clearml_config['access_key']
             os.environ['CLEARML_API_SECRET_KEY'] = clearml_config['secret_key']
-            logging.info(f'set clearml config .... access: {clearml_config['access_key']} ,secret: {clearml_config['secret_key']}')
+            logging.info(f'set clearml config .... access: {clearml_config["access_key"]} ,secret: {clearml_config["secret_key"]}')
             
 
             
