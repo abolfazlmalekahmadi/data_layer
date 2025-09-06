@@ -18,6 +18,7 @@ class S3DownloadRequest(BaseModel):
     bucket_name_target:Optional[str] = None
     clearml_access_key: str
     clearml_secret_key: str
+    queue_name: str = "default" 
     
     
 class KaggleDownloadRequest(BaseModel):
@@ -28,6 +29,7 @@ class KaggleDownloadRequest(BaseModel):
     kaggle_username: Optional[str] = None
     kaggle_key: Optional[str] = None
     dataset_tag : str
+    queue_name: str = "default" 
 
 class HuggingFaceDownloadRequest(BaseModel):
     dataset_name: str
@@ -41,6 +43,7 @@ class HuggingFaceDownloadRequest(BaseModel):
     bucket_name: str
     clearml_access_key: str
     clearml_secret_key: str
+    queue_name: str = "default" 
     
 
 class OpenMLDownloadRequest(BaseModel):
@@ -49,12 +52,14 @@ class OpenMLDownloadRequest(BaseModel):
     dataset_name: Optional[str] = None
     private: bool = False
     dataset_tag : str
+    queue_name: str = "default" 
 
 class ListDatasetsRequest(BaseModel):
     clearml_access_key: str
     clearml_secret_key: str
     user_name: Optional[str] = None
     private_only: Optional[bool] = False
+    queue_name: str = "default" 
     
 class DownloadDatasetRequest(BaseModel):
     """Request model for downloading datasets from ClearML and S3"""
@@ -70,4 +75,5 @@ class DownloadDatasetRequest(BaseModel):
     secret_key: Optional[str] = None
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
+    queue_name: str = "default" 
     

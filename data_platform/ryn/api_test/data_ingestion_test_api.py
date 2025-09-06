@@ -64,7 +64,8 @@ class ClearMLTaskManager:
         for key in env_vars:
             original_env[key] = os.environ.get(key)
             os.environ[key] = env_vars[key]
-        
+            
+        logging.info(f"Task was created with CLEARML_API_ACCESS_KEY: {user_credentials.get('access_key')} , CLEARML_API_SECRET_KEY: {user_credentials.get('secret_key')}")
         try:
             # Import here to ensure it uses the updated environment
             from clearml import Task
@@ -73,7 +74,7 @@ class ClearMLTaskManager:
             full_task_name = f"{task_name}_{unique_id}"
             git_token = "https://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"
             task = Task.create(
-                project_name="DatasetIngestion",
+                project_name=f"DatasetIngestion_{parameters.get('user_name')}",
                 task_name=full_task_name,
                 task_type=Task.TaskTypes.data_processing,
                 script="data_platform/ryn/api_test/processors/" + script_name,
@@ -216,14 +217,20 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
         )
         
         # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+        logger.info(f"queue_name: {hf_req.queue_name}")
         
+        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
+                    task, 
+                    user_credentials, 
+                    queue_name=hf_req.queue_name
+                )        
         return {
             "status": "success",
             "message": f"HuggingFace dataset ingestion task created and enqueued",
             "task_id": task_id,
             "dataset_name": hf_req.dataset_name,
-            "user_name": hf_req.user_name
+            "user_name": hf_req.user_name,
+            "queue_name": hf_req.queue_name
         }
         
     except HTTPException:
@@ -267,14 +274,19 @@ async def ingest_kaggle(request: KaggleDownloadRequest):
         )
         
         # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
-        
+        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
+                    task, 
+                    user_credentials, 
+                    queue_name=request.queue_name
+                )        
         return {
             "status": "success",
             "message": f"Kaggle dataset ingestion task created and enqueued",
             "task_id": task_id,
             "dataset_id": request.dataset_id,
-            "user_name": request.user_name
+            "user_name": request.user_name,
+            "queue_name": request.queue_name
+
         }
         
     except HTTPException:
@@ -317,14 +329,19 @@ async def ingest_openml(request: OpenMLDownloadRequest):
         )
         
         # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
+                    task, 
+                    user_credentials, 
+                    queue_name=request.queue_name
+                )
         
         return {
             "status": "success",
-            "message": f"OpenML dataset ingestion task created and enqueued",
+            "message": f"OpenML dataset ingestion task created and enqueued to queue '{request.queue_name}'",
             "task_id": task_id,
             "dataset_id": request.dataset_id,
-            "user_name": request.user_name
+            "user_name": request.user_name,
+            "queue_name": request.queue_name
         }
         
     except HTTPException:
@@ -374,14 +391,19 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
         )
         
         # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(task, user_credentials)
+        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
+            task, 
+            user_credentials, 
+            queue_name=s3_request.queue_name
+        )
         
         return {
             "status": "success",
-            "message": f"S3 dataset ingestion task created and enqueued",
+            "message": f"S3 dataset ingestion task created and enqueued to queue '{s3_request.queue_name}'",
             "task_id": task_id,
             "dataset_name": s3_request.dataset_name,
-            "user_name": s3_request.user_name
+            "user_name": s3_request.user_name,
+            "queue_name": s3_request.queue_name
         }
     
     except HTTPException:

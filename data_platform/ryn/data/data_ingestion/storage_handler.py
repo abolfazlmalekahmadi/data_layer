@@ -47,7 +47,7 @@ class DatasetStorageHandler:
     def generate_dataset_id(self) -> str:
         return str(uuid.uuid4())
     
-    def store_dataset(self, source_path: Path, metadata: DatasetMetadata, s3_config: dict = None) -> str:
+    def store_dataset(self, source_path: Path, metadata: DatasetMetadata, s3_config: dict = None , clearml_config: dict = None) -> str:
         dataset_dir = self.base_dir / metadata.dataset_name
         print(source_path)
         try:
@@ -72,6 +72,9 @@ class DatasetStorageHandler:
             s3_remote_path = None
             clearml_path = str(stored_path)
             if s3_config:
+                print("s3_config setup....")
+                print(f"clearml_confg.... accsse: {clearml_config}")
+                
                 try:
                     from aipmodel.model_registry import CephS3Manager
                     # print("llll"*100)
@@ -100,7 +103,7 @@ class DatasetStorageHandler:
 
                     # print("Register to clearml")
                     # print("*"*50)
-                    self.register_with_clearml(metadata, str(self.base_dir), s3_config, s3_main_path)
+                    self.register_with_clearml(metadata, str(self.base_dir), s3_config, s3_main_path,clearml_config)
                     
                     
                     # manager.upload(str(self.main_dir), remote_path)
@@ -160,7 +163,7 @@ class DatasetStorageHandler:
                 files.append(f"s3://{bucket}/{obj['Key']}")
         return files
         
-    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config, s3_main_path: str):
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config, s3_main_path: str ,clearml_config):
         # print(metadata)
         # print(stored_path)
         # print(s3_config)
@@ -169,6 +172,11 @@ class DatasetStorageHandler:
             os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
             os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
             os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
+            os.environ['CLEARML_API_ACCESS_KEY'] = clearml_config['access_key']
+            os.environ['CLEARML_API_SECRET_KEY'] = clearml_config['secret_key']
+            logging.info(f'set clearml config .... access: {clearml_config['access_key']} ,secret: {clearml_config['secret_key']}')
+            
+
             
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,

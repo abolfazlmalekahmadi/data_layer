@@ -14,7 +14,7 @@ from data.data_ingestion.storage_handler import DatasetStorageHandler
 logger = logging.getLogger(__name__)
 
 class HuggingFaceHandler:
-    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool , dataset_tag :str, s3_config: dict = None) -> dict  :
+    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool , dataset_tag :str, s3_config: dict = None , clearml_config: dict =None) -> dict  :
         """
         Download a Hugging Face dataset, persist it to PVC, and optionally upload to S3.
         """
@@ -57,7 +57,7 @@ class HuggingFaceHandler:
             )
 
             # move dataset to PVC permanent place and upload to s3 if s3_config provided
-            stored_path = storage_handler.store_dataset(local_dataset_dir, metadata, s3_config=s3_config)
+            stored_path = storage_handler.store_dataset(local_dataset_dir, metadata, s3_config=s3_config , clearml_config=clearml_config)
             # register witth clearml
             # storage_handler.register_with_clearml(metadata, stored_path)
             return {
