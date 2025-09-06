@@ -1,5 +1,5 @@
 # Use a lightweight Python base image
-FROM proxy.ai-lab.ir/mlops/python:data-ingestion
+FROM python:3.11-bullseye
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -17,23 +17,17 @@ RUN echo "trusted-host = mirror-pypi.runflare.com" >> /etc/pip.conf
 RUN pip install -e .
 RUN pip install clearml clearml-serving
 RUN pip install uvicorn
-ENV LAKEFS_ACCESS_KEY="AKIAJW35UUDJP54623UQ"
-ENV LAKEFS_SECRET_KEY="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"
-ENV AWS_ACCESS_KEY_ID="AKIAJW35UUDJP54623UQ"
-ENV AWS_SECRET_ACCESS_KEY="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"
-ENV AWS_ENDPOINT_URL="http://my-lakefs.default.svc.cluster.local:80"
 RUN mkdir -p /mnt/s3
 COPY ryn/api_test/mount_s3.sh /mnt/s3/
 COPY clearml.conf /root
+RUN cat /root/clearml.conf
 WORKDIR api_test
 # Copy the rest of the application code
-# COPY log_reciver.py .
-# COPY loop.sh .
+COPY ryn/api_test/data_ingestion_test_api.py .
 
 # Expose the port the API server will run on
-# EXPOSE 8787
-# RUN chmod -R 777 /var/log
-# RUN mkdir -p /var/log && touch /var/log/my-app.log
+EXPOSE 8169
+RUN chmod -R 777 /var/log
+RUN mkdir -p /var/log && touch /var/log/my-app.log
 # Command to run the Uvicorn server when the container starts
-# CMD ["uvicorn", "log_reciver:app", "--host", "0.0.0.0", "--port", "8787","--no-access-log"]
-# RUN /bin/bash
+CMD ["uvicorn", "data_ingestion_test_api:app", "--host", "0.0.0.0", "--port", "8169", "--no-access-log"]
