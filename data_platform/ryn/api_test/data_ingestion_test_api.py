@@ -523,6 +523,7 @@ async def list_tasks(request: ListTasksRequest):
 class ListClearMLDatasetsRequest(BaseModel):
     clearml_access_key: str
     clearml_secret_key: str
+    username: str
 
 @app.post("/clearml-datasets")
 async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
@@ -542,7 +543,7 @@ async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
         try:
             from clearml import Dataset
             datasets = Dataset.list_datasets(
-                dataset_project="DatasetIngestion",
+                dataset_project=f"DatasetIngestion_{request.username}",
                 partial_name="",
                 only_completed=True
             )
