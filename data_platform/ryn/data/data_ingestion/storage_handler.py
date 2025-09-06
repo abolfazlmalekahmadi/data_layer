@@ -183,7 +183,7 @@ class DatasetStorageHandler:
                 dataset_project=f"DatasetIngestion_{metadata.user_name}",
                 description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
             )
-            logging.inf
+            
             dataset.add_external_files(
                 source_url=stored_path,
                 dataset_path=metadata.dataset_name
