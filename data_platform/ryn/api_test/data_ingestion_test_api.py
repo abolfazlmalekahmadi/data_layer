@@ -147,41 +147,41 @@ class ListQueuesRequest(BaseModel):
     clearml_access_key: str
     clearml_secret_key: str
 
-@app.post("/queues")
-async def list_queues(request: ListQueuesRequest):
-    """List available ClearML queues using provided credentials."""
-    try:
-        # Set environment temporarily to list queues
-        original_env = {}
-        env_vars = {
-            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
-        }
+# @app.post("/queues")
+# async def list_queues(request: ListQueuesRequest):
+#     """List available ClearML queues using provided credentials."""
+#     try:
+#         # Set environment temporarily to list queues
+#         original_env = {}
+#         env_vars = {
+#             'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+#             'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+#         }
         
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
+#         for key in env_vars:
+#             original_env[key] = os.environ.get(key)
+#             os.environ[key] = env_vars[key]
         
-        try:
-            from clearml.backend_api.session.client import APIClient
-            client = APIClient()
-            resp = client.queues.get_all()
-            queues = []
-            if hasattr(resp, 'queues'):
-                queues = [{"name": q.name, "id": q.id} for q in resp.queues]
+#         try:
+#             from clearml.backend_api.session.client import APIClient
+#             client = APIClient()
+#             resp = client.queues.get_all()
+#             queues = []
+#             if hasattr(resp, 'queues'):
+#                 queues = [{"name": q.name, "id": q.id} for q in resp.queues]
             
-            return {"queues": queues, "total": len(queues)}
-        finally:
-            # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
+#             return {"queues": queues, "total": len(queues)}
+#         finally:
+#             # Restore environment
+#             for key, value in original_env.items():
+#                 if value is None:
+#                     os.environ.pop(key, None)
+#                 else:
+#                     os.environ[key] = value
                     
-    except Exception as e:
-        logger.error(f"Error listing queues: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list queues: {str(e)}")
+#     except Exception as e:
+#         logger.error(f"Error listing queues: {e}")
+#         raise HTTPException(status_code=500, detail=f"Failed to list queues: {str(e)}")
 
 @app.post("/huggingface")
 async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
@@ -752,7 +752,7 @@ async def download_dataset(request: DownloadDatasetRequest):
                 partial_name=request.dataset_name,
                 only_completed=True
             )
-            
+            # logging.info(f'list of datasets: {datasets}')
             if not datasets:
                 raise HTTPException(
                     status_code=404, 
@@ -767,6 +767,7 @@ async def download_dataset(request: DownloadDatasetRequest):
                 try:
                     dataset_obj = Dataset.get(dataset_id=dataset_dict["id"])
                     dataset_metadata = dataset_obj.get_metadata()
+                    # logging.info(f"username of dataset: {dataset_metadata.get("user_name")} ")
                     
                     metadata_name_match = dataset_metadata.get("dataset_name") == request.dataset_name
                     dict_name_match = dataset_dict.get("name") == request.dataset_name
@@ -925,80 +926,80 @@ async def download_dataset(request: DownloadDatasetRequest):
 #     user_name: Optional[str] = None
 #     private_only: Optional[bool] = False
 
-@app.post("/list-datasets")
-async def list_datasets(request: ListDatasetsRequest):
-    """List available datasets using provided credentials."""
-    try:
-        # Set environment for ClearML operations
-        original_env = {}
-        env_vars = {
-            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
-        }
+# @app.post("/list-datasets")
+# async def list_datasets(request: ListDatasetsRequest):
+#     """List available datasets using provided credentials."""
+#     try:
+#         # Set environment for ClearML operations
+#         original_env = {}
+#         env_vars = {
+#             'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
+#             'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+#         }
         
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
+#         for key in env_vars:
+#             original_env[key] = os.environ.get(key)
+#             os.environ[key] = env_vars[key]
         
-        try:
-            from clearml import Dataset
+#         try:
+#             from clearml import Dataset
             
-            # Get all datasets from the project
-            datasets = Dataset.list_datasets(
-                dataset_project="DatasetIngestion",
-                partial_name="",
-                only_completed=True
-            )
-            print(datasets)
+#             # Get all datasets from the project
+#             datasets = Dataset.list_datasets(
+#                 dataset_project="DatasetIngestion",
+#                 partial_name="",
+#                 only_completed=True
+#             )
+#             print(datasets)
             
-            filtered_datasets = []
+#             filtered_datasets = []
             
-            for dataset_dict in datasets:
-                try:
-                    dataset_obj = Dataset.get(dataset_id=dataset_dict["id"])
-                    dataset_metadata = dataset_obj.get_metadata()
+#             for dataset_dict in datasets:
+#                 try:
+#                     dataset_obj = Dataset.get(dataset_id=dataset_dict["id"])
+#                     dataset_metadata = dataset_obj.get_metadata()
                     
-                    # Apply filters
-                    if request.user_name and dataset_metadata.get("user_name") != request.user_name:
-                        continue
-                    if request.private_only and not dataset_metadata.get("private", False):
-                        continue
+#                     # Apply filters
+#                     if request.user_name and dataset_metadata.get("user_name") != request.user_name:
+#                         continue
+#                     if request.private_only and not dataset_metadata.get("private", False):
+#                         continue
                     
-                    filtered_datasets.append({
-                        "id": dataset_dict.get("id"),
-                        "name": dataset_dict.get("name"),
-                        "project": dataset_dict.get("project"),
-                        "created": dataset_dict.get("created"),
-                        "status": dataset_dict.get("status"),
-                        "size": dataset_dict.get("size", 0),
-                        "metadata": {
-                            "dataset_name": dataset_metadata.get("dataset_name"),
-                            "user_name": dataset_metadata.get("user_name"),
-                            "private": dataset_metadata.get("private", False),
-                            "dataset_tag": dataset_metadata.get("dataset_tag", ""),
-                            "s3_path": dataset_metadata.get("s3_path")
-                        }
-                    })
+#                     filtered_datasets.append({
+#                         "id": dataset_dict.get("id"),
+#                         "name": dataset_dict.get("name"),
+#                         "project": dataset_dict.get("project"),
+#                         "created": dataset_dict.get("created"),
+#                         "status": dataset_dict.get("status"),
+#                         "size": dataset_dict.get("size", 0),
+#                         "metadata": {
+#                             "dataset_name": dataset_metadata.get("dataset_name"),
+#                             "user_name": dataset_metadata.get("user_name"),
+#                             "private": dataset_metadata.get("private", False),
+#                             "dataset_tag": dataset_metadata.get("dataset_tag", ""),
+#                             "s3_path": dataset_metadata.get("s3_path")
+#                         }
+#                     })
                     
-                except Exception as e:
-                    logger.warning(f"Could not get metadata for dataset {dataset_dict['id']}: {e}")
-                    continue
+#                 except Exception as e:
+#                     logger.warning(f"Could not get metadata for dataset {dataset_dict['id']}: {e}")
+#                     continue
             
-            return {"datasets": filtered_datasets, "total": len(filtered_datasets)}
+#             return {"datasets": filtered_datasets, "total": len(filtered_datasets)}
             
-        finally:
-            # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
+#         finally:
+#             # Restore environment
+#             for key, value in original_env.items():
+#                 if value is None:
+#                     os.environ.pop(key, None)
+#                 else:
+#                     os.environ[key] = value
                     
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error listing datasets: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list datasets: {e}")
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error listing datasets: {e}")
+#         raise HTTPException(status_code=500, detail=f"Failed to list datasets: {e}")
 
 # Add this endpoint to get download methods information
 @app.get("/download-methods")
