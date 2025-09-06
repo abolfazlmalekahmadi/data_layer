@@ -180,7 +180,7 @@ class DatasetStorageHandler:
             
             dataset = ClearMLDataset.create(
                 dataset_name=metadata.dataset_name,
-                dataset_project="DatasetIngestion_datadevnewuserv2",
+                dataset_project=f"DatasetIngestion_{metadata.user_name}",
                 description=f"Dataset ID: {metadata.dataset_id}\nStored path: {stored_path}"
             )
             dataset.add_external_files(
