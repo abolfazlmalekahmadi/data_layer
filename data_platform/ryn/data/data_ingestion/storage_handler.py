@@ -189,6 +189,7 @@ class DatasetStorageHandler:
             )
             # <-- ClearML dataset ID
             ds_id = dataset.id
+            logging.info(f"dataset id is {ds_id}")
             dataset.add_tags([
                 f"s3_path:{s3_main_path}",
                 f"dataset_tag:{metadata.dataset_tag}"
