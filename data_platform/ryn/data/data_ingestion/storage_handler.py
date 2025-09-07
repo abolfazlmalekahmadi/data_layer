@@ -73,7 +73,7 @@ class DatasetStorageHandler:
             clearml_path = str(stored_path)
             if s3_config:
                 print("s3_config setup....")
-                print(f"clearml_confg.... accsse: {clearml_config}")
+                print(f"clearml_confg....: {clearml_config}")
                 
                 try:
                     from aipmodel.model_registry import CephS3Manager
