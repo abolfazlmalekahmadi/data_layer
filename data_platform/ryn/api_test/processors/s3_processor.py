@@ -66,7 +66,9 @@ def main():
             user_name=user_name,
             private=private,
             dataset_tag=dataset_tag if dataset_tag else None,
-            s3_config_target=s3_config_target
+            s3_config_target=s3_config_target,
+            clearml_config=clearml_credentials
+
         )
         
         # Mark task as completed

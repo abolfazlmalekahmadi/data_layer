@@ -35,7 +35,7 @@ class S3Handler:
             logger.error(f"S3 download failed for '{remote_path}' in bucket '{self.bucket_name}': {e}")
             raise HTTPException(status_code=500, detail=f"S3 download error: {e}")
 
-    def process_s3_dataset(self, s3_file_path: str, dataset_name: str, user_name: str, private: bool, dataset_tag: str , s3_config_target: dict = None) -> dict:
+    def process_s3_dataset(self, s3_file_path: str, dataset_name: str, user_name: str, private: bool, dataset_tag: str , s3_config_target: dict = None , clearml_config: dict =None) -> dict:
         """
         Download an S3 dataset, persist it to S3-mounted temp directory, and return metadata.
         """
@@ -93,7 +93,7 @@ class S3Handler:
                 summary=summarize_dataset(local_file),
                 dataset_tag=dataset_tag or "ML"
             )
-            stored_path = storage_handler.store_dataset(local_file, metadata, s3_config=s3_config_target)
+            stored_path = storage_handler.store_dataset(local_file, metadata, s3_config=s3_config_target , clearml_config=clearml_config)
 
             # stored_path = storage_handler.store_dataset(local_file, metadata)
 
