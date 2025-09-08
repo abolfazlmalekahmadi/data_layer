@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
-
+from enum import Enum
 
 class ClearMLCredentials(BaseModel):
     access_key: str
@@ -12,6 +12,14 @@ class S3Credentials(BaseModel):
     secret_key: Optional[str] = None
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
+
+# --- Enum for Download Method ---
+
+class DownloadMethod(str, Enum):
+    """Enumeration for the available dataset download methods."""
+    PRESIGNED_URLS = "presigned_urls"
+    STREAM_ZIP = "stream_zip"
+    DIRECT_STREAM = "direct_stream"
 
 class S3DownloadRequest(BaseModel):
     # Core dataset and S3 file information
@@ -78,7 +86,7 @@ class DownloadDatasetRequest(BaseModel):
     s3_config: S3Credentials
     # Nested credentials for ClearML
     clearml: ClearMLCredentials
-    download_method: str = "presigned_urls"  # Options: "presigned_urls", "stream_zip", "direct_stream"
+    download_method: DownloadMethod = DownloadMethod.PRESIGNED_URLS
     expiration: int = 3600  # For presigned URLs, expiration in seconds (default 1 hour)
 
 class TaskStatusRequest(BaseModel):
