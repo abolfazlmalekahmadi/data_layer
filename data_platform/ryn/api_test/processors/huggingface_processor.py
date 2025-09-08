@@ -40,7 +40,7 @@ def main():
         dataset_tag = params.get("dataset_tag", "")
         s3_config = params.get("s3_config", {})
         
-        logger.info(f"Processing HuggingFace dataset: {dataset_name} for user: {user_name}")
+        logger.info(f"Processing HuggingFace dataset: {dataset_name} for user: {user_name} s3 config: {s3_config}")
         
         # Import handler after setting environment
         from data.data_ingestion.handlers.huggingface_handler import HuggingFaceHandler
