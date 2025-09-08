@@ -1,24 +1,29 @@
-import asyncio
-import uuid
+import io
 import logging
-from typing import Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
 import os
-import tempfile
-from pathlib import Path
+import uuid
+import zipfile
+from typing import Any, Dict
+from urllib.parse import quote
+
+import boto3
+from botocore.exceptions import ClientError
 
 # Import your existing models
 from data.data_ingestion.models.requests import (
+    DownloadDatasetRequest,
     HuggingFaceDownloadRequest,
     KaggleDownloadRequest,
     OpenMLDownloadRequest,
     S3DownloadRequest,
-    ListDatasetsRequest,
-    DownloadDatasetRequest,
+    TaskStatusRequest,
+    ListClearMLDatasetsRequest,
+    ListTasksRequest,
+    ClearMLCredentials,
+    S3Credentials
 )
-from data.data_ingestion.storage_handler import DatasetStorageHandler
-from data.data_ingestion.handlers.s3_handler import S3Handler
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -30,16 +35,7 @@ app = FastAPI(
     version="3.0.0",
 )
 
-# Updated models for direct credential usage
-class ClearMLCredentials(BaseModel):
-    access_key: str
-    secret_key: str
 
-class S3Credentials(BaseModel):
-    access_key: Optional[str] = None
-    secret_key: Optional[str] = None
-    endpoint_url: Optional[str] = None
-    bucket_name: Optional[str] = None
 
 class ClearMLTaskManager:
     """Manages ClearML task creation and enqueueing for dataset ingestion operations."""
@@ -142,20 +138,18 @@ class ClearMLTaskManager:
 def health_check():
     return {"status": "ok", "version": "3.0.0", "queue_system": "ClearML", "multi_user": True}
 
-# Updated model for queues request
-class ListQueuesRequest(BaseModel):
-    clearml_access_key: str
-    clearml_secret_key: str
+
+
 
 # @app.post("/queues")
-# async def list_queues(request: ListQueuesRequest):
+#async def list_queues(request: ClearMLCredentials):
 #     """List available ClearML queues using provided credentials."""
 #     try:
 #         # Set environment temporarily to list queues
 #         original_env = {}
 #         env_vars = {
-#             'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-#             'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+#             'CLEARML_API_ACCESS_KEY': request.access_key,
+#             'CLEARML_API_SECRET_KEY': request.secret_key
 #         }
         
 #         for key in env_vars:
@@ -226,7 +220,7 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
                 )        
         return {
             "status": "success",
-            "message": f"HuggingFace dataset ingestion task created and enqueued",
+            "message": "HuggingFace dataset ingestion task created and enqueued",
             "task_id": task_id,
             "dataset_name": hf_req.dataset_name,
             "user_name": hf_req.user_name,
@@ -281,7 +275,7 @@ async def ingest_kaggle(request: KaggleDownloadRequest):
                 )        
         return {
             "status": "success",
-            "message": f"Kaggle dataset ingestion task created and enqueued",
+            "message": "Kaggle dataset ingestion task created and enqueued",
             "task_id": task_id,
             "dataset_id": request.dataset_id,
             "user_name": request.user_name,
@@ -413,10 +407,7 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
 
 # Updated model for task status request
-class TaskStatusRequest(BaseModel):
-    task_id: str
-    clearml_access_key: str
-    clearml_secret_key: str
+
 
 @app.post("/task-status")
 async def get_task_status(request: TaskStatusRequest):
@@ -457,10 +448,7 @@ async def get_task_status(request: TaskStatusRequest):
         raise HTTPException(status_code=404, detail=f"Task not found or error retrieving status: {str(e)}")
 
 # Updated model for listing tasks
-class ListTasksRequest(BaseModel):
-    clearml_access_key: str
-    clearml_secret_key: str
-    limit: int = 50
+
 
 @app.post("/tasks")
 async def list_tasks(request: ListTasksRequest):
@@ -519,11 +507,7 @@ async def list_tasks(request: ListTasksRequest):
         logger.error(f"Error listing tasks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list tasks: {str(e)}")
 
-# Updated model for listing ClearML datasets
-class ListClearMLDatasetsRequest(BaseModel):
-    clearml_access_key: str
-    clearml_secret_key: str
-    username: str
+
 
 @app.post("/clearml-datasets")
 async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
@@ -572,26 +556,8 @@ async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
         logger.error(f"Error listing ClearML datasets: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list ClearML datasets: {str(e)}")
 
-import zipfile
-import io
-from fastapi import BackgroundTasks
-from fastapi.responses import StreamingResponse, JSONResponse
-from urllib.parse import quote
-import boto3
-from botocore.exceptions import ClientError
-import json
 
-# Updated model for download dataset request with direct credentials
-class DownloadDatasetRequest(BaseModel):
-    dataset_name: str
-    user_name: str  # Added user_name for filtering
-    clearml_access_key: str
-    clearml_secret_key: str
-    s3_access_key: str
-    s3_secret_key: str
-    s3_endpoint_url: str
-    download_method: str = "presigned_urls"  # Options: "presigned_urls", "stream_zip", "direct_stream"
-    expiration: int = 3600  # For presigned URLs, expiration in seconds (default 1 hour)
+
 
 # Helper function to generate presigned URLs
 def generate_presigned_urls(s3_client, bucket_name: str, s3_key: str, expiration: int = 3600):
@@ -796,7 +762,7 @@ async def download_dataset(request: DownloadDatasetRequest):
             if not s3_path:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Dataset does not have S3 path information in metadata"
+                    detail="Dataset does not have S3 path information in metadata"
                 )
             
             # Parse S3 path
