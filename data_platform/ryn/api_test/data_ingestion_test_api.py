@@ -698,13 +698,13 @@ async def stream_files_info(s3_client, bucket_name: str, s3_key: str, expiration
 async def download_dataset(request: DownloadDatasetRequest):
     """Download a dataset with multiple download methods using provided credentials."""
     try:
-        logger.info(f"Starting download for dataset: {request.dataset_name}, user: {request.user_name}, method: {request.download_method} , clearml_access: {request.clearml_access_key} , clearml_secret: {request.clearml_secret_key} ")
+        logger.info(f"Starting download for dataset: {request.dataset_name}, user: {request.user_name}, method: {request.download_method} , clearml_access: {request.clearml.access_key} , clearml_secret: {request.clearml.secret_key} ")
         
         # Set environment for ClearML operations
         original_env = {}
         env_vars = {
-            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml.access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml.secret_key
         }
         
         for key in env_vars:
@@ -780,9 +780,9 @@ async def download_dataset(request: DownloadDatasetRequest):
             # Initialize S3 client
             s3_client = boto3.client(
                 "s3",
-                aws_access_key_id=request.s3_access_key,
-                aws_secret_access_key=request.s3_secret_key,
-                endpoint_url=request.s3_endpoint_url
+                aws_access_key_id=request.s3_config.access_key,
+                aws_secret_access_key=request.s3_config.secret_key,
+                endpoint_url=request.s3_config.endpoint_url
             )
             
             # Handle different download methods
