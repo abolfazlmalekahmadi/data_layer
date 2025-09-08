@@ -235,20 +235,12 @@ async def ingest_kaggle(request: KaggleDownloadRequest):
             "task_type": "kaggle",
             "dataset_id": request.dataset_id,
             "user_name": request.user_name,
-            "kaggle_username": request.kaggle_username,
-            "kaggle_key": request.kaggle_key,
+            "kaggle_username": request.kaggle.user_name,
+            "kaggle_key": request.kaggle.key,
             "private": request.private,
             "dataset_tag": request.dataset_tag or "",
-            "s3_config": {
-                "endpoint_url": request.endpoint_url,
-                "access_key": request.access_key,
-                "secret_key": request.secret_key,
-                "bucket_name": request.bucket_name,
-            },
-            "clearml_config": {
-                "access_key": request.clearml_access_key,
-                "secret_key": request.clearml_secret_key
-            }
+            "s3_config":request.s3_config.dict(),
+            "clearml_config": request.clearml.dict()
         }
         user_credentials = parameters["clearml_config"]
         
@@ -294,16 +286,8 @@ async def ingest_openml(request: OpenMLDownloadRequest):
             "user_name": request.user_name,
             "private": request.private,
             "dataset_tag": request.dataset_tag or "",
-            "s3_config": {
-                "endpoint_url": request.endpoint_url,
-                "access_key": request.access_key,
-                "secret_key": request.secret_key,
-                "bucket_name": request.bucket_name,
-            },
-            "clearml_config": {
-                "access_key": request.clearml_access_key,
-                "secret_key": request.clearml_secret_key
-            }
+            "s3_config": request.s3_config.dict(),
+            "clearml_config": request.clearml.dict()
         }
         user_credentials = parameters["clearml_config"]
         

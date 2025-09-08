@@ -12,6 +12,9 @@ class S3Credentials(BaseModel):
     secret_key: Optional[str] = None
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
+class KaggleCredentials(BaseModel):
+    user_name: str
+    key: str
 
 # --- Enum for Download Method ---
 
@@ -39,10 +42,11 @@ class KaggleDownloadRequest(BaseModel):
     user_name: str
     dataset_name: Optional[str] = None
     private: bool = False
-    kaggle_username: Optional[str] = None
-    kaggle_key: Optional[str] = None
+    kaggle: KaggleCredentials
     dataset_tag : str
     queue_name: str = "default" 
+    clearml: ClearMLCredentials
+    s3_config: S3Credentials
 
 class HuggingFaceDownloadRequest(BaseModel):
     # Hugging Face dataset information
@@ -71,6 +75,8 @@ class OpenMLDownloadRequest(BaseModel):
     private: bool = False
     dataset_tag : str
     queue_name: str = "default" 
+    clearml: ClearMLCredentials
+    s3_config: S3Credentials
 
 class ListDatasetsRequest(BaseModel):
     clearml_access_key: str
