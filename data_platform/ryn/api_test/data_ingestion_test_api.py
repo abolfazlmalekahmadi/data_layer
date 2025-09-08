@@ -83,7 +83,6 @@ class ClearMLTaskManager:
 
             # Add user credentials to task parameters so the processor can use them
             parameters["clearml_credentials"] = user_credentials
-            parameters["s3_config"] = parameters.get("s3_config")
             task.connect(parameters)
 
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
@@ -195,7 +194,7 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
 
         }
         user_credentials = parameters["clearml_config"]
-        
+        logger.info(parameters["s3_config"])
         # Create ClearML task with user-specific credentials
         task = ClearMLTaskManager.create_task_with_user_credentials(
             task_name=f"HuggingFace_{hf_req.dataset_name.replace('/', '-')}",
