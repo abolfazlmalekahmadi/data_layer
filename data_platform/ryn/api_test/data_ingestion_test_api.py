@@ -83,6 +83,7 @@ class ClearMLTaskManager:
 
             # Add user credentials to task parameters so the processor can use them
             parameters["clearml_credentials"] = user_credentials
+            parameters["s3_config"] = parameters.get("s3_config")
             task.connect(parameters)
 
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
