@@ -14,10 +14,11 @@ def main():
     
     # Get parameters from the task
     params = task.get_parameters_as_dict().get('General', {})
-    
+    logger.info(f"params: {params}")
     try:
         # Extract ClearML credentials from task parameters
-        clearml_credentials = params.get("clearml_config")
+        clearml_credentials = params.get("clearml_credentials")
+        logger.info(f"clearml parameters: {clearml_credentials}")
         if clearml_credentials:
             # Set environment variables for this specific execution
             # os.environ['CLEARML_WEB_HOST'] = clearml_credentials['web_host']
