@@ -349,31 +349,42 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
     """Create and enqueue a ClearML task for S3 dataset ingestion."""
     try:
         raw_body = await request.body()
-        logger.info(f"Raw request body: {raw_body}")
+        logger.info(f"Raw request body: {raw_body.decode()}")
+
+        # --- REFACTORED PARAMETER PREPARATION ---
         
-        # Prepare task parameters
+        # Use a default empty S3Credentials object if none is provided to avoid errors
+        source_creds = s3_request.s3_source or S3Credentials()
+        target_creds = s3_request.s3_target or S3Credentials()
+        
+        # Prepare task parameters by accessing the nested objects
         parameters = {
             "task_type": "s3",
-            "access_key": s3_request.access_key,
-            "secret_key": s3_request.secret_key,
-            "endpoint_url": s3_request.endpoint_url,
-            "bucket_name": s3_request.bucket_name,
+            
+            "access_key": source_creds.access_key,
+            "secret_key": source_creds.secret_key,
+            "endpoint_url": source_creds.endpoint_url,
+            "bucket_name": source_creds.bucket_name,
+            
+            # Core dataset parameters
             "s3_file_path": s3_request.s3_file_path,
             "dataset_name": s3_request.dataset_name,
             "user_name": s3_request.user_name,
             "private": s3_request.private,
             "dataset_tag": s3_request.dataset_tag,
+            
             "s3_config_target": {
-                "endpoint_url_target": s3_request.endpoint_url_target,
-                "access_key_target": s3_request.access_key_target,
-                "secret_key_target": s3_request.secret_key_target,
-                "bucket_name_target": s3_request.bucket_name_target,
+                "endpoint_url_target": target_creds.endpoint_url,
+                "access_key_target": target_creds.access_key,
+                "secret_key_target": target_creds.secret_key,
+                "bucket_name_target": target_creds.bucket_name,
             },
-            "clearml_config": {
-                "access_key": s3_request.clearml_access_key,
-                "secret_key": s3_request.clearml_secret_key
-            }
+
+            # ClearML config - Pydantic's .dict() is perfect for this
+            "clearml_config": s3_request.clearml.dict()
         }
+        
+        # This part remains the same as it was already well-structured
         user_credentials = parameters["clearml_config"]
         
         # Create ClearML task with user-specific credentials
@@ -403,11 +414,8 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating S3 ingestion task: {e}")
+        logger.error(f"Error creating S3 ingestion task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create ingestion task: {str(e)}")
-
-# Updated model for task status request
-
 
 @app.post("/task-status")
 async def get_task_status(request: TaskStatusRequest):
