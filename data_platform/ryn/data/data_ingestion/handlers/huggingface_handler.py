@@ -1,14 +1,12 @@
 # data/data_ingestion/handlers/huggingface_handler.py
-from datasets import load_dataset, get_dataset_infos
-from huggingface_hub import HfApi,snapshot_download
-from pathlib import Path
-from datetime import datetime
-from fastapi import HTTPException
-import tempfile
 import logging
-from data.data_ingestion.models.metadata import DatasetMetadata
-from data.data_ingestion.handlers.utils import summarize_dataset
+from datetime import datetime
+
+from fastapi import HTTPException
+from huggingface_hub import HfApi, snapshot_download
+
 from data.data_ingestion.handlers.conditions import DatasetConditionChecker
+from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
 
 logger = logging.getLogger(__name__)
@@ -24,7 +22,7 @@ class HuggingFaceHandler:
             storage_handler = DatasetStorageHandler(mount_dataset_name)
             
             try:
-                DatasetConditionChecker().check_huggingface_size(dataset_name, dataset_config)
+                DatasetConditionChecker().check_huggingface_size(dataset_name, dataset_config, revision=revision)
             except ValueError as size_error:
                 logger.error(f"Dataset size check failed for '{dataset_name}': {size_error}")
                 raise HTTPException(status_code=400, detail=f"Dataset size check failed: {size_error}")

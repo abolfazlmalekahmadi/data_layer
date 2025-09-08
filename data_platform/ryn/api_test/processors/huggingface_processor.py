@@ -1,7 +1,6 @@
 import os
-import uuid
 import logging
-from clearml import Task, Dataset
+from clearml import Task
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ def main():
             # print(clearml_credentials['access_key'])
             os.environ['CLEARML_API_ACCESS_KEY'] = clearml_credentials['access_key']
             os.environ['CLEARML_API_SECRET_KEY'] = clearml_credentials['secret_key']
-            logger.info(f"Set ClearML credentials for user execution")
+            logger.info("Set ClearML credentials for user execution")
         
         dataset_name = params.get("dataset_name")
         if not dataset_name:

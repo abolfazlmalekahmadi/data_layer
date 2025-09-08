@@ -1,18 +1,18 @@
+import json
+import logging
 import os
 import shutil
-import uuid
-import json
-from pathlib import Path
-from fastapi import HTTPException
-import logging
-from data.data_ingestion.models.metadata import DatasetMetadata
-from data.data_ingestion.lakefs.lakefs_handler import lakefs_handler
 import subprocess
-from botocore.config import Config
-import boto3
-
-from clearml import Dataset as ClearMLDataset
 import traceback
+import uuid
+from pathlib import Path
+
+import boto3
+from clearml import Dataset as ClearMLDataset
+from fastapi import HTTPException
+
+from data.data_ingestion.models.metadata import DatasetMetadata
+
 logger = logging.getLogger(__name__)
 PVC_BASE_DIR = Path(__file__).resolve().parent.parent / "PV_Datasets"
 METADATA_DIR = PVC_BASE_DIR / "metadata"

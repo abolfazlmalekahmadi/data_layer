@@ -1,7 +1,8 @@
-from pydantic import BaseModel
-from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class ClearMLCredentials(BaseModel):
     access_key: str
