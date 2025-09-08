@@ -417,8 +417,8 @@ async def get_task_status(request: TaskStatusRequest):
         # Set environment for task status check
         original_env = {}
         env_vars = {
-            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml.access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml.secret_key
         }
         
         for key in env_vars:

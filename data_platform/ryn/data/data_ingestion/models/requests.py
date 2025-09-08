@@ -91,8 +91,7 @@ class DownloadDatasetRequest(BaseModel):
 
 class TaskStatusRequest(BaseModel):
     task_id: str
-    clearml_access_key: str
-    clearml_secret_key: str
+    clearml: ClearMLCredentials
 
 
 class ListTasksRequest(BaseModel):
