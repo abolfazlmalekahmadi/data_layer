@@ -100,6 +100,6 @@ class ListTasksRequest(BaseModel):
     limit: int = 50
 
 class ListClearMLDatasetsRequest(BaseModel):
-    clearml_access_key: str
-    clearml_secret_key: str
-    username: str
+    user_name: str
+    clearml: ClearMLCredentials
+    

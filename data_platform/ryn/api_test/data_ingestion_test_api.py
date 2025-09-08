@@ -518,8 +518,8 @@ async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
         # Set environment temporarily
         original_env = {}
         env_vars = {
-            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml.access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml.secret_key
         }
         
         for key in env_vars:
@@ -529,7 +529,7 @@ async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
         try:
             from clearml import Dataset
             datasets = Dataset.list_datasets(
-                dataset_project=f"DatasetIngestion_{request.username}",
+                dataset_project=f"DatasetIngestion_{request.user_name}",
                 partial_name="",
                 only_completed=True
             )
