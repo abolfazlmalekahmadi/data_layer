@@ -1,4 +1,5 @@
 # data/data_ingestion/handlers/huggingface_handler.py
+import gc
 import logging
 from datetime import datetime
 
@@ -65,7 +66,7 @@ class HuggingFaceHandler:
                 source="huggingface",
                 created_at=datetime.now().isoformat(),
                 file_path="",
-                summary=f"Hugging Face dataset with splits: {list(ds.keys())}"
+                summary=f"Raw file download of the Hugging Face dataset '{dataset_name}' at revision '{revision}'."
             )
 
             # move dataset to PVC permanent place and upload to s3 if s3_config provided
@@ -84,19 +85,12 @@ class HuggingFaceHandler:
             logger.error(f"Error processing Hugging Face dataset '{dataset_name}': {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Error with Hugging Face dataset: {e}")
         finally:
-            try:
-                # ds may not be present on error
-                if 'ds' in locals():
-                    try:
-                        ds.cleanup_cache_files()
-                    except Exception:
-                        pass
-                    del ds
-                import gc; gc.collect()
-            finally:
-                if storage_handler:
-                    # cleanup temp dir (store_dataset also calls cleanup but re-ensure)
-                    storage_handler.cleanup_temp()
+                        # --- Step 5: Cleanup ---
+            # No 'ds' object to clean up, just the temp directory
+            gc.collect()
+            if storage_handler:
+                storage_handler.cleanup_temp()
+
 
 def process_huggingface_dataset(dataset_name, dataset_config , user_name, private , dataset_tag, s3_config=None):
     return HuggingFaceHandler().process(
