@@ -2,23 +2,28 @@ from pydantic import BaseModel
 from typing import Optional
 from pydantic import BaseModel, Field, ConfigDict
 
-class S3DownloadRequest(BaseModel):
-    s3_file_path: str
-    user_name: str
-    dataset_name: Optional[str] = None
-    private: bool = False
+
+class ClearMLCredentials(BaseModel):
+    access_key: str
+    secret_key: str
+
+class S3Credentials(BaseModel):
     access_key: Optional[str] = None
     secret_key: Optional[str] = None
     endpoint_url: Optional[str] = None
     bucket_name: Optional[str] = None
+
+class S3DownloadRequest(BaseModel):
+    # Core dataset and S3 file information
+    s3_file_path: str
+    user_name: str
+    dataset_name: Optional[str] = None
+    private: bool = False
     dataset_tag: Optional[str] = Field(default=None, alias="dataset_tag")
-    secret_key_target:Optional[str] = None
-    access_key_target:Optional[str] = None
-    endpoint_url_target:Optional[str] = None
-    bucket_name_target:Optional[str] = None
-    clearml_access_key: str
-    clearml_secret_key: str
-    queue_name: str = "default" 
+    s3_source: Optional[S3Credentials] = None
+    s3_target: Optional[S3Credentials] = None
+    clearml: ClearMLCredentials
+    queue_name: str = "default"
     
     
 class KaggleDownloadRequest(BaseModel):
@@ -32,18 +37,23 @@ class KaggleDownloadRequest(BaseModel):
     queue_name: str = "default" 
 
 class HuggingFaceDownloadRequest(BaseModel):
+    # Hugging Face dataset information
     dataset_name: str
-    dataset_config: str | None = None
+    dataset_config: Optional[str] = None
+    
+    # ClearML dataset metadata
     user_name: str
     private: bool = False
-    dataset_tag: str | None = None
-    endpoint_url: str
-    access_key: str
-    secret_key: str
-    bucket_name: str
-    clearml_access_key: str
-    clearml_secret_key: str
-    queue_name: str = "default" 
+    dataset_tag: Optional[str] = None
+    
+    # Nested credentials for the S3 target where the dataset will be stored
+    s3_config: S3Credentials
+    
+    # Nested credentials for ClearML
+    clearml: ClearMLCredentials
+    
+    # ClearML execution parameters
+    queue_name: str = "default"
     
 
 class OpenMLDownloadRequest(BaseModel):
@@ -62,18 +72,27 @@ class ListDatasetsRequest(BaseModel):
     queue_name: str = "default" 
     
 class DownloadDatasetRequest(BaseModel):
-    """Request model for downloading datasets from ClearML and S3"""
-    
-    # Dataset identification
     dataset_name: str
-    user_name: str
-    # Optional parameters
+    user_name: str  # Added user_name for filtering
+    # Nested credentials for the S3 target where the dataset will be stored
+    s3_config: S3Credentials
+    # Nested credentials for ClearML
+    clearml: ClearMLCredentials
+    download_method: str = "presigned_urls"  # Options: "presigned_urls", "stream_zip", "direct_stream"
+    expiration: int = 3600  # For presigned URLs, expiration in seconds (default 1 hour)
+
+class TaskStatusRequest(BaseModel):
+    task_id: str
     clearml_access_key: str
     clearml_secret_key: str
-    local_download_path: Optional[str] = None  # If not provided, uses temp directory
-    access_key: Optional[str] = None
-    secret_key: Optional[str] = None
-    endpoint_url: Optional[str] = None
-    bucket_name: Optional[str] = None
-    queue_name: str = "default" 
-    
+
+
+class ListTasksRequest(BaseModel):
+    clearml_access_key: str
+    clearml_secret_key: str
+    limit: int = 50
+
+class ListClearMLDatasetsRequest(BaseModel):
+    clearml_access_key: str
+    clearml_secret_key: str
+    username: str
