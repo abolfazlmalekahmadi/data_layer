@@ -189,16 +189,9 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
             "user_name": hf_req.user_name,
             "private": hf_req.private,
             "dataset_tag": hf_req.dataset_tag or "",
-            "s3_config": {
-                "endpoint_url": hf_req.endpoint_url,
-                "access_key": hf_req.access_key,
-                "secret_key": hf_req.secret_key,
-                "bucket_name": hf_req.bucket_name,
-            },
-            "clearml_config": {
-                "access_key": hf_req.clearml_access_key,
-                "secret_key": hf_req.clearml_secret_key
-            }
+            "s3_config": hf_req.s3_config,
+            "clearml_config": hf_req.clearml.dict()
+
         }
         user_credentials = parameters["clearml_config"]
         
