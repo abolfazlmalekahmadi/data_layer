@@ -9,7 +9,7 @@ from urllib.parse import quote
 import boto3
 from botocore.exceptions import ClientError
 
-# Import your existing models
+
 from data.data_ingestion.models.requests import (
     DownloadDatasetRequest,
     HuggingFaceDownloadRequest,
@@ -25,7 +25,7 @@ from data.data_ingestion.models.requests import (
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-# Set up logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
