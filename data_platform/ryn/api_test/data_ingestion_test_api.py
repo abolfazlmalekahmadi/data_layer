@@ -458,8 +458,8 @@ async def list_tasks(request: ListTasksRequest):
         # Set environment temporarily
         original_env = {}
         env_vars = {
-            'CLEARML_API_ACCESS_KEY': request.clearml_access_key,
-            'CLEARML_API_SECRET_KEY': request.clearml_secret_key
+            'CLEARML_API_ACCESS_KEY': request.clearml.access_key,
+            'CLEARML_API_SECRET_KEY': request.clearml.secret_key
         }
         
         for key in env_vars:
@@ -471,21 +471,22 @@ async def list_tasks(request: ListTasksRequest):
             client = APIClient()
             
             # Get project ID
-            projects = client.projects.get_all(name="DatasetIngestion")
-            if not projects.projects:
+            projects = client.projects.get_all(name=f"DatasetIngestion_{request.user_name}")
+            logger.info(projects)
+            if not projects:
                 return {"tasks": [], "message": "No project found with name: DatasetIngestion"}
             
-            project_id = projects.projects[0].id
-            
+            project_id = projects[0].id
+            logger.info(project_id)
             # Get tasks for the project
             tasks_response = client.tasks.get_all(
                 project=[project_id],
                 page_size=request.limit,
                 order_by=["-created"]
             )
-            
+            logger.info(tasks_response)
             tasks = []
-            for task in tasks_response.tasks:
+            for task in tasks_response:
                 tasks.append({
                     "id": task.id,
                     "name": task.name,
