@@ -1,6 +1,6 @@
 # data/data_ingestion/handlers/huggingface_handler.py
 from datasets import load_dataset, get_dataset_infos
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi,snapshot_download
 from pathlib import Path
 from datetime import datetime
 from fastapi import HTTPException
@@ -14,7 +14,7 @@ from data.data_ingestion.storage_handler import DatasetStorageHandler
 logger = logging.getLogger(__name__)
 
 class HuggingFaceHandler:
-    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool , dataset_tag :str, s3_config: dict = None , clearml_config: dict =None) -> dict  :
+    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool , dataset_tag :str, s3_config: dict = None , clearml_config: dict =None,revision: str = "main") -> dict  :
         """
         Download a Hugging Face dataset, persist it to PVC, and optionally upload to S3.
         """
@@ -29,16 +29,30 @@ class HuggingFaceHandler:
                 logger.error(f"Dataset size check failed for '{dataset_name}': {size_error}")
                 raise HTTPException(status_code=400, detail=f"Dataset size check failed: {size_error}")
 
-            # Download directly into PVC-backed temp dir so it persists
+            api = HfApi()
+            # Fetch repo info to get metadata like the exact commit SHA for the given revision
+            info = api.repo_info(dataset_name, repo_type="dataset", revision=revision)
+
+            # --- Step 2: Download raw files using snapshot_download ---
             temp_dir = storage_handler.temp_dir
             logger.info(f"Using PVC-backed temp directory: {temp_dir}")
+            
+            # This directory will contain the downloaded files, mirroring the HF repo structure
+            local_dataset_dir = temp_dir / "huggingface_dataset_files"
+            local_dataset_dir.mkdir(parents=True, exist_ok=True)
 
-            ds = load_dataset(dataset_name, dataset_config, cache_dir=str(temp_dir / "cache"))
-            api = HfApi()
-            info = api.repo_info(dataset_name, repo_type="dataset")
-            local_dataset_dir = temp_dir / "huggingface_dataset"
-            # save to disk under the PVC temp dir
-            ds.save_to_disk(str(local_dataset_dir))
+            logger.info(f"Downloading raw files for dataset '{dataset_name}' at revision '{revision}'...")
+            
+            snapshot_download(
+                repo_id=dataset_name,
+                repo_type="dataset",
+                revision=revision,
+                cache_dir=str(temp_dir / "cache"),
+                local_dir=str(local_dataset_dir),
+                # CRITICAL: Use False to ensure files are copied, not symlinked.
+                # This is necessary so we can move the directory to permanent storage later.
+                local_dir_use_symlinks=False,
+            )
 
             ds_id = storage_handler.generate_dataset_id()
             metadata = DatasetMetadata(
