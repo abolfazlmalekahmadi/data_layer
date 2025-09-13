@@ -1,16 +1,17 @@
 # s3_sdk.py
 
+import hashlib
+import json
+import math
 import os
 import sys
-import json
-import hashlib
-import math
 import threading
 from typing import Dict, Optional
 
 import boto3
-from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
 from boto3.s3.transfer import TransferConfig
+from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
+
 
 class ProgressPercentage:
     """A thread-safe progress callback for Boto3 uploads."""
