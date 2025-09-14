@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 from typing import Dict, Optional
+import time  # Added for ETA calculation
 
 import boto3
 from boto3.s3.transfer import TransferConfig
@@ -14,15 +15,32 @@ from botocore.exceptions import ClientError, NoCredentialsError, PartialCredenti
 
 
 class ProgressPercentage:
-    """A thread-safe progress callback for Boto3 uploads."""
+    """A thread-safe progress callback for Boto3 uploads with ETA."""
 
     def __init__(self, filename: str, size: int, initial_bytes: int = 0):
         self._filename = os.path.basename(filename)
         self._size = float(size)
         self._seen_so_far = float(initial_bytes)
         self._lock = threading.Lock()
+        self._start_time = time.time()
+        self._initial_bytes = float(initial_bytes)  # Store initial offset for rate calculation
+
         if self._seen_so_far > 0:
             self.__call__(0)  # Immediately display resume progress
+
+    @staticmethod
+    def _format_time(seconds: float) -> str:
+        """Formats seconds into HH:MM:SS or MM:SS."""
+        if seconds < 0 or not math.isfinite(seconds):
+            return "--:--"
+        
+        seconds = int(seconds)
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
 
     def __call__(self, bytes_amount: int):
         with self._lock:
@@ -31,17 +49,39 @@ class ProgressPercentage:
             self._seen_so_far = min(self._seen_so_far, self._size)
             percentage = (self._seen_so_far / self._size) * 100
 
+            elapsed_time = time.time() - self._start_time
+            bytes_this_session = self._seen_so_far - self._initial_bytes
+            
+            speed_str = "0.00 MB/s"
+            eta_str = "--:--"
+
+            if elapsed_time > 0 and bytes_this_session > 0:
+                rate = bytes_this_session / elapsed_time  # bytes/sec
+                speed_mbps = rate / 1024 / 1024
+                speed_str = f"{speed_mbps:.2f} MB/s"
+
+                remaining_bytes = self._size - self._seen_so_far
+                if rate > 0:
+                    eta_seconds = remaining_bytes / rate
+                    eta_str = self._format_time(eta_seconds)
+
             progress_line = (
                 f"\r  ↳  Uploading {self._filename} ... "
                 f"{self._seen_so_far / 1024 / 1024:.2f}MB / {self._size / 1024 / 1024:.2f}MB "
-                f"({percentage:.2f}%)"
+                f"({percentage:.2f}%) [{speed_str} | ETA: {eta_str}]  "
             )
+            
             sys.stdout.write(progress_line)
             sys.stdout.flush()
 
             if self._seen_so_far >= self._size:
-                sys.stdout.write("\n")
-
+                # Overwrite the final line with a clean "Done" message
+                done_line = (
+                    f"\r  ↳  Uploading {self._filename} ... "
+                    f"{self._size / 1024 / 1024:.2f}MB / {self._size / 1024 / 1024:.2f}MB "
+                    f"(100.00%) [Done]                        \n"
+                )
+                sys.stdout.write(done_line)
 
 class S3Uploader:
     """An SDK for robust, resumable file uploads to S3-compatible storage."""
