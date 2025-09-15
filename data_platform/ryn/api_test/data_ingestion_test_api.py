@@ -51,11 +51,11 @@ class ClearMLTaskManager:
         """Create a ClearML task with specific user credentials."""
         
         # Set environment variables for this specific task creation
-        original_env = {}
-        env_vars = {
-            'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
-            'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
-        }
+        # original_env = {}
+        # env_vars = {
+        #     'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
+        #     'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
+        # }
         
         # # Backup original environment
         # for key in env_vars:
@@ -366,6 +366,7 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
         
         # This part remains the same as it was already well-structured
         user_credentials = parameters["clearml_config"]
+        
         
         # Create ClearML task with user-specific credentials
         task = ClearMLTaskManager.create_task_with_user_credentials(

@@ -175,17 +175,20 @@ class DatasetStorageHandler:
         return files
 
     # --- REFACTORED register_with_clearml METHOD (Best Practice) ---
-    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config: dict, s3_main_path: str, clearml_config: dict):
+    def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config, s3_main_path: str ,clearml_config):
+        # print(metadata)
+        # print(stored_path)
+        # print(s3_config)
+        # print(s3_main_path)
         try:
-            logger.info(f"clearml access {clearml_config['access_key']},{clearml_config['secret_key']}")
-            # Best Practice: Use the SDK to set credentials instead of environment variables.
-            # This is safer, especially in multi-threaded environments.
-            Task.set_credentials(
-                # You might need to add your api_host here if not default
-                # api_host="https://api.clear.ml", 
-                key=clearml_config['access_key'],
-                secret=clearml_config['secret_key']
-            )
+            os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
+            os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
+            os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
+            os.environ['CLEARML_API_ACCESS_KEY'] = clearml_config['access_key']
+            os.environ['CLEARML_API_SECRET_KEY'] = clearml_config['secret_key']
+            logger.info(f'set clearml config .... access: {clearml_config["access_key"]} ,secret: {clearml_config["secret_key"]}')
+            
+
 
             logger.info("Creating ClearML dataset...")
             dataset = ClearMLDataset.create(
