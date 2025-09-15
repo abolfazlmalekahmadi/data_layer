@@ -366,11 +366,11 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
         
         
         task_id = ClearMLTaskManager.create_and_enqueue_task(
-            task_name=f"S3_{hf_req.dataset_name.replace('/', '-')}",
+            task_name=f"S3_{s3_request.dataset_name.replace('/', '-')}",
             script_name="s3_processor.py",
             parameters=parameters,
             user_credentials=user_credentials,
-            queue_name=hf_req.queue_name
+            queue_name=s3_request.queue_name
         )
         
         return {
