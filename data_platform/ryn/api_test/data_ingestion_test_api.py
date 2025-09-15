@@ -5,7 +5,6 @@ import uuid
 import zipfile
 from typing import Any, Dict
 from urllib.parse import quote
-
 import boto3
 from botocore.exceptions import ClientError
 
@@ -49,7 +48,7 @@ class ClearMLTaskManager:
         user_credentials: Dict[str, str]
     ) -> 'Task':
         """Create a ClearML task with specific user credentials."""
-        
+        import sys
         modules_to_remove = [mod for mod in list(sys.modules.keys()) if mod.startswith('clearml')]
         for mod in modules_to_remove:
             del sys.modules[mod]
