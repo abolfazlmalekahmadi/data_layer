@@ -88,7 +88,8 @@ class ClearMLTaskManager:
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
             return task
             
-        # finally:
+        finally:
+            pass
         #     # Restore original environment
         #     for key, value in original_env.items():
         #         if value is None:
