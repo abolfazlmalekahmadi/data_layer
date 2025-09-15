@@ -56,10 +56,10 @@ class ClearMLTaskManager:
             'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
         }
         
-        # Backup original environment
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
+        # # Backup original environment
+        # for key in env_vars:
+        #     original_env[key] = os.environ.get(key)
+        #     os.environ[key] = env_vars[key]
             
         logging.info(f"Task was created with CLEARML_API_ACCESS_KEY: {user_credentials.get('access_key')} , CLEARML_API_SECRET_KEY: {user_credentials.get('secret_key')}")
         try:
@@ -88,13 +88,13 @@ class ClearMLTaskManager:
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
             return task
             
-        finally:
-            # Restore original environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
+        # finally:
+        #     # Restore original environment
+        #     for key, value in original_env.items():
+        #         if value is None:
+        #             os.environ.pop(key, None)
+        #         else:
+        #             os.environ[key] = value
 
     @staticmethod
     def enqueue_task_with_credentials(
