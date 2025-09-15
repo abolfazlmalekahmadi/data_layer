@@ -195,10 +195,8 @@ class DatasetStorageHandler:
             
             # Use ClearML's S3 configuration to point to the external data
             dataset.add_external_files(
-                source_url=s3_main_path,
-                aws_key=s3_config['access_key'],
-                aws_secret=s3_config['secret_key'],
-                aws_endpoint=s3_config['endpoint_url']
+                source_url=stored_path,
+                dataset_path=metadata.dataset_name
             )
 
             ds_id = dataset.id
