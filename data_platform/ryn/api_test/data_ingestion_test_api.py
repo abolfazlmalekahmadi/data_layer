@@ -85,19 +85,27 @@ class ClearMLTaskManager:
     """Manages ClearML task creation and enqueueing for dataset ingestion operations."""
 
     @staticmethod
-    def create_task_with_user_credentials(
+    def create_and_enqueue_task(
         task_name: str, 
         script_name: str, 
         parameters: Dict[str, Any],
-        user_credentials: Dict[str, str]
-    ) -> 'Task':
-        """Create a ClearML task with specific user credentials."""
-        
+        user_credentials: Dict[str, str],
+        queue_name: str = "default"
+    ) -> str: # Return the task_id (string)
+        """
+        Creates and immediately enqueues a ClearML task within a single, consistent context.
+        """
+        # Enter the context ONCE for both operations
         with temporary_clearml_credentials(user_credentials):    
-            logging.info(f"Task was created with CLEARML_API_ACCESS_KEY: {user_credentials.get('access_key')} , CLEARML_API_SECRET_KEY: {user_credentials.get('secret_key')}")
+            logging.info(f"Creating and enqueuing with credentials: KEY={user_credentials.get('access_key')}")
             
             # Import here to ensure it uses the updated environment
             from clearml import Task
+            
+            # --- 1. CREATE THE TASK ---
+            unique_id = uuid.uuid4().hex[:8]
+            full_task_name = f"{task_name}_{unique_id}"
+            git_token = "..." # Your git token
             
             unique_id = uuid.uuid4().hex[:8]
             full_task_name = f"{task_name}_{unique_id}"
@@ -114,31 +122,20 @@ class ClearMLTaskManager:
                 docker=None
             )
 
-            # Add user credentials to task parameters so the processor can use them
             parameters["clearml_credentials"] = user_credentials
             task.connect(parameters)
-
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
-            return task
-            
 
-    @staticmethod
-    def enqueue_task_with_credentials(
-        task: 'Task', 
-        user_credentials: Dict[str, str],
-        queue_name: str = "default"
-    ) -> str:
-        """Enqueue task with user-specific credentials."""
-        
-        with temporary_clearml_credentials(user_credentials):
+            # --- 2. ENQUEUE THE TASK (using the same Task class) ---
             try:
-                from clearml import Task
                 Task.enqueue(task=task, queue_name=queue_name)
                 logger.info(f"Successfully enqueued task {task.name} to queue '{queue_name}' with ID: {task.id}")
                 return task.id
             except Exception as e:
-                logger.error(f"Failed to enqueue task: {e}")
+                # Log the full exception to see the real error
+                logger.error(f"Failed to enqueue task {task.id}: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=f"Failed to enqueue task: {str(e)}")
+            
 
 # API Endpoints
 
@@ -204,21 +201,16 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
         user_credentials = parameters["clearml_config"]
         logger.info(parameters["s3_config"])
         # Create ClearML task with user-specific credentials
-        task = ClearMLTaskManager.create_task_with_user_credentials(
+
+        task_id = ClearMLTaskManager.create_and_enqueue_task(
             task_name=f"HuggingFace_{hf_req.dataset_name.replace('/', '-')}",
             script_name="huggingface_processor.py",
             parameters=parameters,
-            user_credentials=user_credentials
+            user_credentials=user_credentials,
+            queue_name=hf_req.queue_name
         )
         
-        # Enqueue the task with user credentials
-        logger.info(f"queue_name: {hf_req.queue_name}")
-        
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
-                    task, 
-                    user_credentials, 
-                    queue_name=hf_req.queue_name
-                )        
+              
         return {
             "status": "success",
             "message": "HuggingFace dataset ingestion task created and enqueued",
@@ -373,19 +365,12 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
         user_credentials = parameters["clearml_config"]
         
         
-        # Create ClearML task with user-specific credentials
-        task = ClearMLTaskManager.create_task_with_user_credentials(
-            task_name=f"S3_{s3_request.dataset_name}",
+        task_id = ClearMLTaskManager.create_and_enqueue_task(
+            task_name=f"S3_{hf_req.dataset_name.replace('/', '-')}",
             script_name="s3_processor.py",
             parameters=parameters,
-            user_credentials=user_credentials
-        )
-        
-        # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
-            task, 
-            user_credentials, 
-            queue_name=s3_request.queue_name
+            user_credentials=user_credentials,
+            queue_name=hf_req.queue_name
         )
         
         return {
