@@ -106,15 +106,15 @@ class ClearMLTaskManager:
         """Enqueue task with user-specific credentials."""
         
         # Set environment for enqueueing
-        original_env = {}
-        env_vars = {
-            'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
-            'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
-        }
+        # original_env = {}
+        # env_vars = {
+        #     'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
+        #     'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
+        # }
         
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
+        # for key in env_vars:
+        #     original_env[key] = os.environ.get(key)
+        #     os.environ[key] = env_vars[key]
         
         try:
             from clearml import Task
@@ -126,12 +126,13 @@ class ClearMLTaskManager:
             logger.error(f"Failed to enqueue task: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to enqueue task: {str(e)}")
         finally:
+            pass
             # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
+            # for key, value in original_env.items():
+            #     if value is None:
+            #         os.environ.pop(key, None)
+            #     else:
+            #         os.environ[key] = value
 
 # API Endpoints
 
