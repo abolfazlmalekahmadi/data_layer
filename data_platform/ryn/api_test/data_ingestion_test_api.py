@@ -101,11 +101,7 @@ class ClearMLTaskManager:
             
             # Import here to ensure it uses the updated environment
             from clearml import Task
-            
-            # --- 1. CREATE THE TASK ---
-            unique_id = uuid.uuid4().hex[:8]
-            full_task_name = f"{task_name}_{unique_id}"
-            git_token = "..." # Your git token
+    
             
             unique_id = uuid.uuid4().hex[:8]
             full_task_name = f"{task_name}_{unique_id}"
