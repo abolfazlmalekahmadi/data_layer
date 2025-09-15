@@ -177,6 +177,7 @@ class DatasetStorageHandler:
     # --- REFACTORED register_with_clearml METHOD (Best Practice) ---
     def register_with_clearml(self, metadata: DatasetMetadata, stored_path: str, s3_config: dict, s3_main_path: str, clearml_config: dict):
         try:
+            logger.info(f"clearml access {clearml_config['access_key']},{clearml_config['secret_key']}")
             # Best Practice: Use the SDK to set credentials instead of environment variables.
             # This is safer, especially in multi-threaded environments.
             Task.set_credentials(

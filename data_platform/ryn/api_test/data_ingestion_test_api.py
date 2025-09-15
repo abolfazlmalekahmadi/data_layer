@@ -9,6 +9,7 @@ from urllib.parse import quote
 import boto3
 from botocore.exceptions import ClientError
 
+from clearml.backend_api.session.client import APIClient
 
 from data.data_ingestion.models.requests import (
     DownloadDatasetRequest,

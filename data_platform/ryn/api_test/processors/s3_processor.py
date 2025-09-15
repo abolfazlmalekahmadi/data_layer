@@ -29,7 +29,7 @@ def main():
             # print(clearml_credentials['access_key'])
             os.environ['CLEARML_API_ACCESS_KEY'] = clearml_credentials['access_key']
             os.environ['CLEARML_API_SECRET_KEY'] = clearml_credentials['secret_key']
-            logger.info(f"Set ClearML credentials for user execution")
+            logger.info(f"Set ClearML credentials for user execution {os.environ['CLEARML_API_ACCESS_KEY']} {os.environ['CLEARML_API_SECRET_KEY']}")
         
         # Extract parameters
         access_key = params.get("access_key")
