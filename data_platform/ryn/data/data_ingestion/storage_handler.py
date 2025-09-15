@@ -183,7 +183,7 @@ class DatasetStorageHandler:
                 # You might need to add your api_host here if not default
                 # api_host="https://api.clear.ml", 
                 key=clearml_config['access_key'],
-                api_secret=clearml_config['secret_key']
+                secret=clearml_config['secret_key']
             )
 
             logger.info("Creating ClearML dataset...")
