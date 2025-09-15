@@ -36,6 +36,50 @@ app = FastAPI(
 )
 
 
+# main.py (add this utility at the top or in a helpers.py file)
+
+import os
+from contextlib import contextmanager
+from typing import Dict
+
+@contextmanager
+def temporary_clearml_credentials(credentials: Dict[str, str]):
+    """
+    A context manager to temporarily set ClearML credentials as environment variables.
+    Ensures original environment is restored even if errors occur.
+    """
+    import sys
+    modules_to_remove = [mod for mod in list(sys.modules.keys()) if mod.startswith('clearml')]
+    for mod in modules_to_remove:
+        del sys.modules[mod]
+    original_env = {}
+    env_vars_to_set = {
+        'CLEARML_API_ACCESS_KEY': credentials.get('access_key'),
+        'CLEARML_API_SECRET_KEY': credentials.get('secret_key')
+    }
+    
+    # Backup original values and set new ones
+    for key, value in env_vars_to_set.items():
+        original_env[key] = os.environ.get(key)
+        if value is not None:
+            os.environ[key] = value
+        elif key in os.environ:
+            # If the new value is None but the key exists, remove it
+            del os.environ[key]
+
+    try:
+        # This is where the code inside the 'with' block will run
+        yield
+    finally:
+        # Restore the original environment
+        for key, value in original_env.items():
+            if value is None:
+                # If the original value was None, remove the key
+                os.environ.pop(key, None)
+            else:
+                # Otherwise, restore the original value
+                os.environ[key] = value
+
 
 class ClearMLTaskManager:
     """Manages ClearML task creation and enqueueing for dataset ingestion operations."""
@@ -48,24 +92,10 @@ class ClearMLTaskManager:
         user_credentials: Dict[str, str]
     ) -> 'Task':
         """Create a ClearML task with specific user credentials."""
-        import sys
-        modules_to_remove = [mod for mod in list(sys.modules.keys()) if mod.startswith('clearml')]
-        for mod in modules_to_remove:
-            del sys.modules[mod]
-        # Set environment variables for this specific task creation
-        original_env = {}
-        env_vars = {
-            'CLEARML_API_ACCESS_KEY': user_credentials.get('access_key'),
-            'CLEARML_API_SECRET_KEY': user_credentials.get('secret_key')
-        }
         
-        # Backup original environment
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
+        with temporary_clearml_credentials(user_credentials):    
+            logging.info(f"Task was created with CLEARML_API_ACCESS_KEY: {user_credentials.get('access_key')} , CLEARML_API_SECRET_KEY: {user_credentials.get('secret_key')}")
             
-        logging.info(f"Task was created with CLEARML_API_ACCESS_KEY: {user_credentials.get('access_key')} , CLEARML_API_SECRET_KEY: {user_credentials.get('secret_key')}")
-        try:
             # Import here to ensure it uses the updated environment
             from clearml import Task
             
@@ -91,14 +121,6 @@ class ClearMLTaskManager:
             logger.info(f"Created ClearML task: {full_task_name} with ID: {task.id}")
             return task
             
-        finally:
-            pass
-            # Restore original environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
     @staticmethod
     def enqueue_task_with_credentials(
