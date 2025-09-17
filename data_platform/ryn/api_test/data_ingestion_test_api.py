@@ -265,18 +265,13 @@ async def ingest_kaggle(request: KaggleDownloadRequest):
         }
         user_credentials = parameters["clearml_config"]
 
-        # Create ClearML task with user-specific credentials
-        task = ClearMLTaskManager.create_task_with_user_credentials(
+        task_id = ClearMLTaskManager.create_and_enqueue_task(
             task_name=f"Kaggle_{request.dataset_id}",
             script_name="kaggle_processor.py",
             parameters=parameters,
             user_credentials=user_credentials,
-        )
-
-        # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
-            task, user_credentials, queue_name=request.queue_name
-        )
+            queue_name=request.queue_name
+            )
         return {
             "status": "success",
             "message": "Kaggle dataset ingestion task created and enqueued",
@@ -312,18 +307,13 @@ async def ingest_openml(request: OpenMLDownloadRequest):
         }
         user_credentials = parameters["clearml_config"]
 
-        # Create ClearML task with user-specific credentials
-        task = ClearMLTaskManager.create_task_with_user_credentials(
+
+        task_id = ClearMLTaskManager(
             task_name=f"OpenML_{request.dataset_name or request.dataset_id}",
             script_name="openml_processor.py",
             parameters=parameters,
             user_credentials=user_credentials,
-        )
-
-        # Enqueue the task with user credentials
-        task_id = ClearMLTaskManager.enqueue_task_with_credentials(
-            task, user_credentials, queue_name=request.queue_name
-        )
+            queue_name=request.queue_name)
 
         return {
             "status": "success",
@@ -412,18 +402,8 @@ async def ingest_s3(request: Request, s3_request: S3DownloadRequest):
 async def get_task_status(request: TaskStatusRequest):
     """Get the status of a ClearML task using provided credentials."""
     try:
-        # Set environment for task status check
-        original_env = {}
-        env_vars = {
-            "CLEARML_API_ACCESS_KEY": request.clearml.access_key,
-            "CLEARML_API_SECRET_KEY": request.clearml.secret_key,
-        }
-
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
-
-        try:
+        credentials = {"access_key":request.clearml.access_key,"secret_key": request.clearml.secret_key}
+        with temporary_clearml_credentials(credentials=credentials):
             from clearml import Task
 
             task = Task.get_task(task_id=request.task_id)
@@ -435,14 +415,6 @@ async def get_task_status(request: TaskStatusRequest):
                 "created": task.data.created,
                 "last_update": task.data.last_update,
             }
-        finally:
-            # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
-
     except Exception as e:
         logger.error(f"Error getting task status: {e}")
         raise HTTPException(
@@ -458,18 +430,8 @@ async def get_task_status(request: TaskStatusRequest):
 async def list_tasks(request: ListTasksRequest):
     """List recent ClearML tasks using provided credentials."""
     try:
-        # Set environment temporarily
-        original_env = {}
-        env_vars = {
-            "CLEARML_API_ACCESS_KEY": request.clearml.access_key,
-            "CLEARML_API_SECRET_KEY": request.clearml.secret_key,
-        }
-
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
-
-        try:
+        credentials = {"access_key":request.clearml.access_key,"secret_key": request.clearml.secret_key}
+        with temporary_clearml_credentials(credentials=credentials):
             from clearml.backend_api.session.client import APIClient
 
             client = APIClient()
@@ -506,14 +468,6 @@ async def list_tasks(request: ListTasksRequest):
                 )
 
             return {"tasks": tasks, "total": len(tasks)}
-        finally:
-            # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
-
     except Exception as e:
         logger.error(f"Error listing tasks: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list tasks: {str(e)}")
@@ -523,18 +477,8 @@ async def list_tasks(request: ListTasksRequest):
 async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
     """List ClearML datasets using provided credentials."""
     try:
-        # Set environment temporarily
-        original_env = {}
-        env_vars = {
-            "CLEARML_API_ACCESS_KEY": request.clearml.access_key,
-            "CLEARML_API_SECRET_KEY": request.clearml.secret_key,
-        }
-
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
-
-        try:
+        credentials = {"access_key":request.clearml.access_key,"secret_key": request.clearml.secret_key}
+        with temporary_clearml_credentials(credentials=credentials):
             from clearml import Dataset
 
             datasets = Dataset.list_datasets(
@@ -557,13 +501,6 @@ async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
                 )
 
             return {"datasets": dataset_list, "total": len(dataset_list)}
-        finally:
-            # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
     except Exception as e:
         logger.error(f"Error listing ClearML datasets: {e}")
@@ -734,18 +671,8 @@ async def download_dataset(request: DownloadDatasetRequest):
             f"Starting download for dataset: {request.dataset_name}, user: {request.user_name}, method: {request.download_method} , clearml_access: {request.clearml.access_key} , clearml_secret: {request.clearml.secret_key} "
         )
 
-        # Set environment for ClearML operations
-        original_env = {}
-        env_vars = {
-            "CLEARML_API_ACCESS_KEY": request.clearml.access_key,
-            "CLEARML_API_SECRET_KEY": request.clearml.secret_key,
-        }
-
-        for key in env_vars:
-            original_env[key] = os.environ.get(key)
-            os.environ[key] = env_vars[key]
-
-        try:
+        credentials = {"access_key":request.clearml.access_key,"secret_key": request.clearml.secret_key}
+        with temporary_clearml_credentials(credentials=credentials):
             from clearml import Dataset
 
             # Find the ClearML dataset by name
@@ -917,14 +844,6 @@ async def download_dataset(request: DownloadDatasetRequest):
                     status_code=400,
                     detail=f"Invalid download_method: {request.download_method}. Valid options: presigned_urls, stream_zip, direct_stream",
                 )
-
-        finally:
-            # Restore environment
-            for key, value in original_env.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
     except HTTPException:
         raise
