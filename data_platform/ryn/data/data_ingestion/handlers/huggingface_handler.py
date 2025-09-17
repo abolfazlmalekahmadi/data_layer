@@ -12,21 +12,37 @@ from data.data_ingestion.storage_handler import DatasetStorageHandler
 
 logger = logging.getLogger(__name__)
 
+
 class HuggingFaceHandler:
-    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool, s3_config: dict = None , clearml_config: dict =None, revision: str = "main") -> dict  :
+    def process(
+        self,
+        dataset_name: str,
+        dataset_config: str,
+        user_name: str,
+        private: bool,
+        s3_config: dict = None,
+        clearml_config: dict = None,
+        revision: str = "main",
+    ) -> dict:
         """
         Download a Hugging Face dataset, persist it to PVC, and optionally upload to S3.
         """
         storage_handler = None
         try:
-            mount_dataset_name = dataset_name.replace('/', '-')
+            mount_dataset_name = dataset_name.replace("/", "-")
             storage_handler = DatasetStorageHandler(mount_dataset_name)
-            
+
             try:
-                DatasetConditionChecker().check_huggingface_size(dataset_name,revision=revision)
+                DatasetConditionChecker().check_huggingface_size(
+                    dataset_name, revision=revision
+                )
             except ValueError as size_error:
-                logger.error(f"Dataset size check failed for '{dataset_name}': {size_error}")
-                raise HTTPException(status_code=400, detail=f"Dataset size check failed: {size_error}")
+                logger.error(
+                    f"Dataset size check failed for '{dataset_name}': {size_error}"
+                )
+                raise HTTPException(
+                    status_code=400, detail=f"Dataset size check failed: {size_error}"
+                )
 
             api = HfApi()
             # Fetch repo info to get metadata like the exact commit SHA for the given revision
@@ -35,13 +51,15 @@ class HuggingFaceHandler:
             # --- Step 2: Download raw files using snapshot_download ---
             temp_dir = storage_handler.temp_dir
             logger.info(f"Using PVC-backed temp directory: {temp_dir}")
-            
+
             # This directory will contain the downloaded files, mirroring the HF repo structure
             local_dataset_dir = temp_dir / "huggingface_dataset_files"
             local_dataset_dir.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"Downloading raw files for dataset '{dataset_name}' at revision '{revision}'...")
-            
+            logger.info(
+                f"Downloading raw files for dataset '{dataset_name}' at revision '{revision}'..."
+            )
+
             snapshot_download(
                 repo_id=dataset_name,
                 repo_type="dataset",
@@ -56,21 +74,28 @@ class HuggingFaceHandler:
             ds_id = storage_handler.generate_dataset_id()
             metadata = DatasetMetadata(
                 dataset_id=ds_id,
-                dataset_name= dataset_name.replace('/', '-'),
+                dataset_name=dataset_name.replace("/", "-"),
                 dataset_config=dataset_config,
                 last_commit=getattr(info, "sha", None),
-                last_modified=getattr(info, "last_modified", None).isoformat() if getattr(info, "last_modified", None) else None,
+                last_modified=getattr(info, "last_modified", None).isoformat()
+                if getattr(info, "last_modified", None)
+                else None,
                 user_name=user_name,
                 private=private,
-                revision = revision,
+                revision=revision,
                 source="huggingface",
                 created_at=datetime.now().isoformat(),
                 file_path="",
-                summary=f"Raw file download of the Hugging Face dataset '{dataset_name}' at revision '{revision}'."
+                summary=f"Raw file download of the Hugging Face dataset '{dataset_name}' at revision '{revision}'.",
             )
 
             # move dataset to PVC permanent place and upload to s3 if s3_config provided
-            stored_path = storage_handler.store_dataset(local_dataset_dir, metadata, s3_config=s3_config , clearml_config=clearml_config)
+            stored_path = storage_handler.store_dataset(
+                local_dataset_dir,
+                metadata,
+                s3_config=s3_config,
+                clearml_config=clearml_config,
+            )
             # register witth clearml
             # storage_handler.register_with_clearml(metadata, stored_path)
             return {
@@ -82,22 +107,29 @@ class HuggingFaceHandler:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Error processing Hugging Face dataset '{dataset_name}': {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Error with Hugging Face dataset: {e}")
+            logger.error(
+                f"Error processing Hugging Face dataset '{dataset_name}': {e}",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500, detail=f"Error with Hugging Face dataset: {e}"
+            )
         finally:
-                        # --- Step 5: Cleanup ---
+            # --- Step 5: Cleanup ---
             # No 'ds' object to clean up, just the temp directory
             gc.collect()
             if storage_handler:
                 storage_handler.cleanup_temp()
 
 
-def process_huggingface_dataset(dataset_name, dataset_config , user_name, private , dataset_tag, s3_config=None):
+def process_huggingface_dataset(
+    dataset_name, dataset_config, user_name, private, dataset_tag, s3_config=None
+):
     return HuggingFaceHandler().process(
         dataset_name=dataset_name,
         dataset_config=dataset_config,
         user_name=user_name,
         private=private,
-        dataset_tag = dataset_tag,
-        s3_config = s3_config
+        dataset_tag=dataset_tag,
+        s3_config=s3_config,
     )
