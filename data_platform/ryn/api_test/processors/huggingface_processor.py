@@ -52,7 +52,7 @@ def main():
             dataset_config=dataset_config if dataset_config else None,
             user_name=user_name,
             private=private,
-            dataset_tag=dataset_tag if dataset_tag else None,
+            revision=revision if revision else None,
             s3_config=s3_config,
             clearml_config=clearml_credentials
             
