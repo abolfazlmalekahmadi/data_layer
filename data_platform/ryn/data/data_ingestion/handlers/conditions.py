@@ -13,7 +13,7 @@ class DatasetConditionChecker:
     def has_enough_space(self, size_bytes: int, buffer_ratio: float = 1.2) -> bool:
         """Check if there's enough available disk space with a buffer."""
         total, used, free = shutil.disk_usage("/")
-    
+        logger.info(f"dataset size: {size_bytes} bytes")
         logger.info(f"Available free disk space: {free} bytes")
         return free >= size_bytes * buffer_ratio , free
 
@@ -56,7 +56,7 @@ class DatasetConditionChecker:
             }
             total_size_bytes += size
 
-        estimated_size = total_size_bytes / (1024 ** 2)
+        estimated_size = total_size_bytes
 
         if estimated_size > 0:
             has_space, free_space = self.has_enough_space(estimated_size)

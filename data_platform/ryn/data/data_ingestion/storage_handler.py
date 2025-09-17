@@ -208,7 +208,7 @@ class DatasetStorageHandler:
 
             dataset.add_tags([
                 f"s3_path:{s3_main_path}",
-                f"dataset_tag:{metadata.dataset_tag}"
+                f"revision:{metadata.revision}"
             ])
             
             all_metadata = metadata.dict()
