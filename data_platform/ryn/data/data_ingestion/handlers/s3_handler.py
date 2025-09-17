@@ -82,7 +82,7 @@ class S3Handler:
             metadata = DatasetMetadata(
                 dataset_id=dataset_id,
                 dataset_name=dataset_name or local_file.stem,
-                revision=None,
+                revision="main",
                 last_commit=None,
                 last_modified=None,
                 user_name=user_name,
