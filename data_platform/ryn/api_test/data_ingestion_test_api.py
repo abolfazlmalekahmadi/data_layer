@@ -679,7 +679,7 @@ async def download_dataset(request: DownloadDatasetRequest):
             datasets = Dataset.list_datasets(
                 partial_name=request.dataset_name, only_completed=True
             )
-            # logging.info(f'list of datasets: {datasets}')
+            print(f'list of datasets: {datasets}')
             if not datasets:
                 raise HTTPException(
                     status_code=404,
