@@ -23,7 +23,7 @@ class HuggingFaceHandler:
             storage_handler = DatasetStorageHandler(mount_dataset_name)
             
             try:
-                DatasetConditionChecker().check_huggingface_size(dataset_name, dataset_config, revision=revision)
+                DatasetConditionChecker().check_huggingface_size(dataset_name,revision=revision)
             except ValueError as size_error:
                 logger.error(f"Dataset size check failed for '{dataset_name}': {size_error}")
                 raise HTTPException(status_code=400, detail=f"Dataset size check failed: {size_error}")

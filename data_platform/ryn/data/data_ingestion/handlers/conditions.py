@@ -17,7 +17,7 @@ class DatasetConditionChecker:
         logger.info(f"Available free disk space: {free} bytes")
         return free >= size_bytes * buffer_ratio , free
 
-    def check_huggingface_size(self, dataset_name: str, dataset_config: str = None, revision: str = "main"):
+    def check_huggingface_size(self, dataset_name: str, revision: str = "main"):
         """
         Check if there is enough disk space for a specific revision of a Hugging Face dataset.
 
@@ -39,17 +39,17 @@ class DatasetConditionChecker:
 
         # The rest of the logic can remain largely the same
         target_info = None
-        if dataset_config and dataset_config in infos:
-            target_info = infos[dataset_config]
-        elif not dataset_config and len(infos) > 0:
+        if  revision in infos:
+            target_info = infos[revision]
+        elif not revision and len(infos) > 0:
             # If no config is specified, check the first one (or aggregate sizes if needed)
             target_info = next(iter(infos.values()))
         
         if not target_info:
-            logger.warning(f"No valid configuration found for '{dataset_name}' (config: {dataset_config}) at revision '{revision}'")
+            logger.warning(f"No valid configuration found for '{dataset_name}' (revision: {revision}) at revision '{revision}'")
             raise HTTPException(
                 status_code=400,
-                detail=f"No valid configuration found for '{dataset_name}' (config: {dataset_config}) at revision '{revision}'"
+                detail=f"No valid configuration found for '{dataset_name}' (revision: {revision}) at revision '{revision}'"
             )
 
         estimated_size = (
