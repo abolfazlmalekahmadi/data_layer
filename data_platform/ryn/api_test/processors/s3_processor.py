@@ -40,7 +40,7 @@ def main():
         dataset_name = params.get("dataset_name")
         user_name = params.get("user_name")
         private = params.get("private", False)
-        revision = params.get("revision")
+        dataset_tag = params.get("dataset_tag")
         s3_config_target = params.get("s3_config_target", {})
         s3_config_target = {
             key.replace("_target", ""): value
@@ -65,7 +65,7 @@ def main():
             dataset_name=dataset_name,
             user_name=user_name,
             private=private,
-            revision=revision if revision else None,
+            dataset_tag=dataset_tag if dataset_tag else None,
             s3_config_target=s3_config_target,
             clearml_config=clearml_credentials
 
