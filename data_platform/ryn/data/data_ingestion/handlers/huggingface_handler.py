@@ -13,7 +13,7 @@ from data.data_ingestion.storage_handler import DatasetStorageHandler
 logger = logging.getLogger(__name__)
 
 class HuggingFaceHandler:
-    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool , dataset_tag :str, s3_config: dict = None , clearml_config: dict =None,revision: str = "main") -> dict  :
+    def process(self, dataset_name: str , dataset_config : str, user_name: str, private: bool, s3_config: dict = None , clearml_config: dict =None, revision: str = "main") -> dict  :
         """
         Download a Hugging Face dataset, persist it to PVC, and optionally upload to S3.
         """
@@ -62,7 +62,7 @@ class HuggingFaceHandler:
                 last_modified=getattr(info, "last_modified", None).isoformat() if getattr(info, "last_modified", None) else None,
                 user_name=user_name,
                 private=private,
-                dataset_tag = dataset_tag,
+                revision = revision,
                 source="huggingface",
                 created_at=datetime.now().isoformat(),
                 file_path="",

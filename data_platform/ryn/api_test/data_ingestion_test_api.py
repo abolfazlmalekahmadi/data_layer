@@ -213,7 +213,7 @@ async def ingest_huggingface(hf_req: HuggingFaceDownloadRequest):
             "dataset_config": hf_req.dataset_config or "",
             "user_name": hf_req.user_name,
             "private": hf_req.private,
-            "dataset_tag": hf_req.dataset_tag or "",
+            "revision": hf_req.revision or "",
             "s3_config": hf_req.s3_config.dict(),
             "clearml_config": hf_req.clearml.dict(),
         }

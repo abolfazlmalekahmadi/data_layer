@@ -57,7 +57,7 @@ class HuggingFaceDownloadRequest(BaseModel):
     # ClearML dataset metadata
     user_name: str
     private: bool = False
-    dataset_tag: Optional[str] = None
+    revision: Optional[str] = None
     
     # Nested credentials for the S3 target where the dataset will be stored
     s3_config: S3Credentials
