@@ -38,25 +38,25 @@ class DatasetConditionChecker:
             )
 
         # The rest of the logic can remain largely the same
-        target_info = None
-        if  revision in infos:
-            target_info = infos[revision]
-        elif not revision and len(infos) > 0:
-            # If no config is specified, check the first one (or aggregate sizes if needed)
-            target_info = next(iter(infos.values()))
-        
-        if not target_info:
-            logger.warning(f"No valid configuration found for '{dataset_name}' (revision: {revision}) at revision '{revision}'")
-            raise HTTPException(
-                status_code=400,
-                detail=f"No valid configuration found for '{dataset_name}' (revision: {revision}) at revision '{revision}'"
-            )
+        total_size_bytes = 0
+        config_sizes = {}
 
-        estimated_size = (
-            getattr(target_info, "size_in_bytes", 0)
-            or getattr(target_info, "dataset_size", 0)
-            or getattr(target_info, "download_size", 0)
-        )
+        for config_name, info in infos.items():
+        # Try to get dataset_size, size_in_bytes, or download_size
+            size = (
+                getattr(info, "dataset_size", 0)
+                or getattr(info, "size_in_bytes", 0)
+                or getattr(info, "download_size", 0)
+            )
+            if size == 0:
+                print(f"No size information available for config '{config_name}' in dataset '{dataset_name}'")
+            config_sizes[config_name] = {
+                "size_bytes": size,
+                "size_mb": size / (1024 ** 2) if size > 0 else 0
+            }
+            total_size_bytes += size
+
+        estimated_size = total_size_bytes / (1024 ** 2)
 
         if estimated_size > 0:
             has_space, free_space = self.has_enough_space(estimated_size)
