@@ -43,48 +43,6 @@ env_lock = Lock()
 
 # main.py (add this utility at the top or in a helpers.py file)
 
-
-@contextmanager
-def temporary_clearml_credentials(credentials: Dict[str, str]):
-    """
-    A context manager to temporarily set ClearML credentials as environment variables.
-    Ensures original environment is restored even if errors occur.
-    """
-    import sys
-
-    modules_to_remove = [
-        mod for mod in list(sys.modules.keys()) if mod.startswith("clearml")
-    ]
-    for mod in modules_to_remove:
-        del sys.modules[mod]
-    original_env = {}
-    env_vars_to_set = {
-        "CLEARML_API_ACCESS_KEY": credentials.get("access_key"),
-        "CLEARML_API_SECRET_KEY": credentials.get("secret_key"),
-    }
-
-    # Backup original values and set new ones
-    for key, value in env_vars_to_set.items():
-        original_env[key] = os.environ.get(key)
-        if value is not None:
-            os.environ[key] = value
-        elif key in os.environ:
-            # If the new value is None but the key exists, remove it
-            del os.environ[key]
-
-    try:
-        # This is where the code inside the 'with' block will run
-        yield
-    finally:
-        # Restore the original environment
-        for key, value in original_env.items():
-            if value is None:
-                # If the original value was None, remove the key
-                os.environ.pop(key, None)
-            else:
-                # Otherwise, restore the original value
-                os.environ[key] = value
-
 @contextmanager
 def clearml_client_session(credentials: dict):
     """
@@ -430,7 +388,7 @@ async def get_task_status(request: TaskStatusRequest):
             "access_key": request.clearml.access_key,
             "secret_key": request.clearml.secret_key,
         }
-        with temporary_clearml_credentials(credentials=credentials):
+        with clearml_client_session(credentials=credentials):
             from clearml import Task
 
             task = Task.get_task(task_id=request.task_id)
@@ -461,7 +419,7 @@ async def list_tasks(request: ListTasksRequest):
             "access_key": request.clearml.access_key,
             "secret_key": request.clearml.secret_key,
         }
-        with temporary_clearml_credentials(credentials=credentials):
+        with clearml_client_session(credentials=credentials):
             from clearml.backend_api.session.client import APIClient
 
             client = APIClient()
@@ -511,7 +469,7 @@ async def list_clearml_datasets(request: ListClearMLDatasetsRequest):
             "access_key": request.clearml.access_key,
             "secret_key": request.clearml.secret_key,
         }
-        with temporary_clearml_credentials(credentials=credentials):
+        with clearml_client_session(credentials=credentials):
             from clearml import Dataset
 
             datasets = Dataset.list_datasets(
@@ -708,7 +666,7 @@ async def download_dataset(request: DownloadDatasetRequest):
             "access_key": request.clearml.access_key,
             "secret_key": request.clearml.secret_key,
         }
-        with temporary_clearml_credentials(credentials=credentials):
+        with clearml_client_session(credentials=credentials):
             from clearml import Dataset
 
             # Find the ClearML dataset by name
