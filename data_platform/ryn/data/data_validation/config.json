@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Validate Raw User CSVs",
+    "path_pattern": "*.csv",
+    "validator": "tabular"
+  },
+  {
+    "name": "Validate Transaction Parquet Files",
+    "path_pattern": "*.parquet",
+    "validator": "tabular"
+  },
+  {
+    "name": "Validate Product Images",
+    "path_pattern": "*.jp*g",
+    "validator": "image"
+  },
+  {
+    "name": "Validate Product Images(png)",
+    "path_pattern": "*.png",
+    "validator": "image"
+  },
+  {
+    "name": "Validate Order JSON Schemas",
+    "path_pattern": "*.json",
+    "validator": "json"
+  }
+]
