@@ -83,6 +83,26 @@ def temporary_clearml_credentials(credentials: Dict[str, str]):
                 # Otherwise, restore the original value
                 os.environ[key] = value
 
+@contextmanager
+def clearml_client_session(credentials: dict):
+    """
+    A context manager that creates an explicit, isolated ClearML Session and APIClient
+    based on the provided user credentials.
+    """
+    # 1. Create the explicit Session object with credentials
+    session = Session(
+        api_key=credentials.get("access_key"),
+        secret_key=credentials.get("secret_key"),
+        # You might need to specify the api_server if not using the default
+        # host="https://api.clear.ml"
+    )
+    
+    try:
+        # 3. Yield the fully configured client for the 'with' block to use
+        yield client
+    finally:
+        logger.info("ClearML session restored and client cleaned up.")
+
 
 class ClearMLTaskManager:
     """Manages ClearML task creation and enqueueing for dataset ingestion operations."""
@@ -99,13 +119,15 @@ class ClearMLTaskManager:
         Creates and immediately enqueues a ClearML task within a single, consistent context.
         """
         # Enter the context ONCE for both operations
-        with temporary_clearml_credentials(user_credentials):
+        with clearml_client_session(user_credentials):
             logging.info(
                 f"Creating and enqueuing with credentials: KEY={user_credentials.get('access_key')}"
             )
 
             # Import here to ensure it uses the updated environment
             from clearml import Task
+
+            Task.set_credentials(key=user_credentials.get("access_key"),secret=user_credentials.get("secret_key"))
 
             unique_id = uuid.uuid4().hex[:8]
             full_task_name = f"{task_name}_{unique_id}"

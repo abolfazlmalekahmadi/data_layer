@@ -181,12 +181,12 @@ class DatasetStorageHandler:
         # print(s3_config)
         # print(s3_main_path)
         try:
-            os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
-            os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
-            os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
-            os.environ['CLEARML_API_ACCESS_KEY'] = clearml_config['access_key']
-            os.environ['CLEARML_API_SECRET_KEY'] = clearml_config['secret_key']
-            logger.info(f'set clearml config .... access: {clearml_config["access_key"]} ,secret: {clearml_config["secret_key"]}')
+            # os.environ['AWS_ACCESS_KEY_ID'] = s3_config['access_key']
+            # os.environ['AWS_SECRET_ACCESS_KEY'] = s3_config['secret_key']
+            # os.environ['AWS_S3_ENDPOINT_URL'] = s3_config['endpoint_url']
+            # os.environ['CLEARML_API_ACCESS_KEY'] = clearml_config['access_key']
+            # os.environ['CLEARML_API_SECRET_KEY'] = clearml_config['secret_key']
+            # logger.info(f'set clearml config .... access: {clearml_config["access_key"]} ,secret: {clearml_config["secret_key"]}')
             
 
 
