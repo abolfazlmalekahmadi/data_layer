@@ -83,7 +83,7 @@ class S3Handler:
             s3_filename = Path(s3_file_path).name
             local_file = temp_dir / s3_filename  # Combine directory with filename
 
-            print(f"local_file:{local_file}")
+            logger.info(f"temp_dir: {temp_dir}")
 
             print(s3_file_path)
 
