@@ -102,8 +102,18 @@ def send_request(credentials, api_url="http://localhost:8279"):
         "dataset_tag": "ML",
         "queue_name": credentials.get("queue_name", "default"),
         "clearml": credentials["clearml"],
-        "s3_source": credentials["s3_source"],
-        "s3_target": credentials["s3_target"]
+        "s3_source": {
+            "access_key": "8HZE0U3P5VOSCPEOUN4G",
+            "secret_key": "ihLqlXsauVYmiV83uu5kDdzAZzjlLlXYx05OIOwg",
+            "endpoint_url": "http://172.15.20.153",
+            "bucket_name": "testdario7-bucket"
+        },
+        "s3_target": {
+            "access_key": "8HZE0U3P5VOSCPEOUN4G",
+            "secret_key": "ihLqlXsauVYmiV83uu5kDdzAZzjlLlXYx05OIOwg",
+            "endpoint_url": "http://172.15.20.153",
+            "bucket_name": "testdario7-bucket"
+        }
     }
 
     # Convert payload to JSON string for curl

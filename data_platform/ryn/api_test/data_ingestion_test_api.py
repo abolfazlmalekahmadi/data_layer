@@ -9,6 +9,8 @@ import boto3
 from botocore.exceptions import ClientError
 from threading import Lock
 
+from clearml.backend_api.session import Session
+
 from contextlib import contextmanager
 
 
@@ -99,7 +101,7 @@ def clearml_client_session(credentials: dict):
     
     try:
         # 3. Yield the fully configured client for the 'with' block to use
-        yield client
+        yield
     finally:
         logger.info("ClearML session restored and client cleaned up.")
 
