@@ -1,0 +1,22 @@
+
+    - name: "Validate User CSVs"
+      path_pattern: "**/*.csv"
+      validator: "tabular"
+      rules:
+        dataset:
+          required_columns:
+            - "user_id"
+            - "email"
+        columns:
+          user_id:
+            not_null: true
+
+    - name: "Validate Transaction Parquet Files"
+      path_pattern: "**/*.parquet"
+      validator: "tabular"
+      rules:
+        dataset: 
+          required_columns:
+            - "transaction_id"
+            - "user_id"
+    
