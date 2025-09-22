@@ -2,6 +2,9 @@ import os
 import yaml
 import pandas as pd
 from pathlib import Path
+import cv2
+import numpy as np 
+
 
 # Import the main orchestrator class
 from validation import DirectoryValidator
@@ -13,6 +16,8 @@ def setup_test_directory(root_dir: Path):
     # Define paths
     users_path = root_dir / "landing/users"
     transactions_path = root_dir / "processed/transactions/day=1"
+    images_path = root_dir / "assets/product_images"
+    images_path.mkdir(parents=True, exist_ok=True)
     
     # Create directories
     users_path.mkdir(parents=True, exist_ok=True)
@@ -30,6 +35,13 @@ def setup_test_directory(root_dir: Path):
     # 2. Create a BAD CSV file that should fail validation
     #    - 'user_id' contains a null value (violates not_null)
     #    - 'email' column is missing (violates required_columns)
+    link_data = {
+        "user_id": [9, 10],
+        "email": ["nine@test.com", "ten@test.com"],
+        "comment": ["All good", "Please see details at http://malicious-site.com"]
+    }
+    pd.DataFrame(link_data).to_csv(users_path / "users_with_links.csv", index=False)
+    print(f"Created: {users_path / 'users_with_links.csv'}")
     bad_data = {
         "user_id": [4, None, 6],
         "age": [40, 45, 50]
@@ -46,6 +58,29 @@ def setup_test_directory(root_dir: Path):
     pd.DataFrame(transaction_data).to_parquet(transactions_path / "transactions.parquet")
     print(f"Created: {transactions_path / 'transactions.parquet'}")
 
+    valid_image_path = images_path / "product_good.jpg"
+    good_image_data = np.zeros((10, 10, 3), dtype=np.uint8) # Start with black
+    good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
+    cv2.imwrite(str(valid_image_path), good_image_data)
+    print(f"Created: {valid_image_path}")
+
+    # 2. A completely BLACK image (should fail)
+    black_image_path = images_path / "product_black.jpg"
+    black_image_data = np.zeros((10, 10, 3), dtype=np.uint8)
+    cv2.imwrite(str(black_image_path), black_image_data)
+    print(f"Created: {black_image_path}")
+    
+    # 3. A completely WHITE image (should fail)
+    white_image_path = images_path / "product_white.jpg"
+    white_image_data = np.ones((10, 10, 3), dtype=np.uint8) * 255
+    cv2.imwrite(str(white_image_path), white_image_data)
+    print(f"Created: {white_image_path}")
+
+    # 4. An INVALID image file (a text file with a .jpg extension)
+    invalid_image_path = images_path / "product_corrupt.jpg"
+    with open(invalid_image_path, "w") as f:
+        f.write("This is not an image!")
+    print(f"Created: {invalid_image_path}")
     # 4. Create the YAML configuration file
     # config_content = """
     # - name: "Validate User CSVs"
@@ -114,6 +149,9 @@ def main():
                 if 'column' in error:
                     print(f"    Column: {error.get('column')}")
                 print(f"    Details: {error.get('error')}")
+                if 'example' in error:
+                    print(f"   example: {error.get('example')}")
+
         print("-" * 25)
 
 

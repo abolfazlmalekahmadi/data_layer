@@ -7,6 +7,7 @@ import pandas as pd
 from pathlib import Path
 import cv2
 import re
+import numpy as np 
 
 
 class BaseValidator(ABC):
@@ -233,6 +234,9 @@ class ImageValidator(BaseValidator):
                 "error": f"An unexpected error occurred while trying to read the image: {e}"
             })
 
+        errors.extend(self._check_solid_color(image))
+
+        is_valid = len(errors) == 0
         return ValidationResult(
             file_path=file_path,
             is_valid=is_valid,
@@ -240,7 +244,39 @@ class ImageValidator(BaseValidator):
             errors=errors
             # warnings list is empty by default, which is fine
         )
+    def _check_solid_color(self, image: np.ndarray) -> list:
+        """
+        Checks if the image is completely one color (e.g., all black or all white).
+        This check only runs if 'disallow_solid_color' is true in the rules.
+        """
+        errors = []
+        # Check if the rule is enabled in the config
+        # if not self.rules.get("disallow_solid_color"):
+        #     return errors # Rule not enabled, so we skip the check
 
+        # Efficiently check if all pixel values are the same
+        min_val = np.min(image)
+        max_val = np.max(image)
+
+        # print(min_val,max_val)
+        if min_val == max_val:
+            # All pixels have the same value, so it's a solid color
+            if min_val == 0:
+                errors.append({
+                    "check": "solid_color",
+                    "error": "Image is completely black."
+                })
+            elif min_val == 255:
+                errors.append({
+                    "check": "solid_color",
+                    "error": "Image is completely white."
+                })
+            else:
+                 errors.append({
+                    "check": "solid_color",
+                    "error": f"Image is a solid color with pixel value {min_val}."
+                })
+        return errors
 class JsonValidator(BaseValidator):
     """
     Validates JSON files, typically against a JSON Schema.

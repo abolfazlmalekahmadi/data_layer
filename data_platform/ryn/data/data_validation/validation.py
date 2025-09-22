@@ -40,7 +40,7 @@ class DirectoryValidator:
         """
         self.validator_registry = {
             "tabular": TabularValidator,
-            # "image": ImageValidator, # Example for the future
+            "image": ImageValidator, # Example for the future
             # "json": JsonValidator,   # Example for the future
         }
         print(f"Registered validators: {list(self.validator_registry.keys())}")

@@ -1,4 +1,3 @@
-
     - name: "Validate User CSVs"
       path_pattern: "**/*.csv"
       validator: "tabular"
@@ -19,4 +18,9 @@
       #     required_columns:
       #       - "transaction_id"
       #       - "user_id"
-    
+    - name: "Validate for Image files"
+      path_pattern: "**/*.jpg"
+      validator: "image"
+    - name: "Validate for Image files(png)"
+      path_pattern: "**/*.png"
+      validator: "image"
