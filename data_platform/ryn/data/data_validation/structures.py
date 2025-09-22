@@ -11,12 +11,12 @@ class ValidationResult:
     validator_used: str
     errors: List[Dict[str, Any]] = field(default_factory=list)
     warnings: List[Dict[str, Any]] = field(default_factory=list)
-
+    duration_seconds: float | None = None
 
     def __repr__(self):
         status = "PASSED" if self.is_valid else "FAILED"
-        return f"ValidationResult(file='{self.file_path}', status='{status}', errors={len(self.errors)}, warnings= {len(self.warnings)})"
-
+        duration_str = f", duration={self.duration_seconds:.4f}s" if self.duration_seconds is not None else ""
+        return f"ValidationResult(file='{self.file_path}', status='{status}', errors={len(self.errors)}, warnings= {len(self.warnings)} {duration_str})"
 @dataclass
 class ValidationReport:
     """Aggregates results from all files validated in a directory run."""
@@ -34,14 +34,34 @@ class ValidationReport:
         return "COMPLETE_FAILURE"
         
     def add_result(self, result: ValidationResult):
-        """Adds a single file's validation result to the report."""
         self.results.append(result)
 
     def has_failures(self) -> bool:
-        """Returns True if any validation failed."""
         return any(not r.is_valid for r in self.results)
 
+    # --- NEW: Helper properties for counts ---
+    @property
+    def total_files(self) -> int:
+        """Returns the total number of files validated."""
+        return len(self.results)
+
+    @property
+    def passed_count(self) -> int:
+        """Returns the number of files that passed validation."""
+        return sum(1 for r in self.results if r.is_valid)
+
+    @property
+    def failed_count(self) -> int:
+        """Returns the number of files that failed validation."""
+        return self.total_files - self.passed_count
+
+    # --- UPDATED: The __repr__ method ---
     def __repr__(self):
-        return (f"ValidationReport(directory='{self.directory_path}', "
-                f"status='{self.overall_status}', "
-                f"files_validated={len(self.results)})")
+        """Provides a comprehensive, human-readable summary of the report."""
+        summary_str = (f"{self.total_files} validated, "
+                       f"{self.passed_count} passed, "
+                       f"{self.failed_count} failed")
+        
+        return (f"directory='{self.directory_path}'\n "
+                f"status='{self.overall_status}'\n "
+                f"summary='{summary_str}'")

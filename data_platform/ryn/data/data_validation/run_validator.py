@@ -17,11 +17,35 @@ def setup_test_directory(root_dir: Path):
     users_path = root_dir / "landing/users"
     transactions_path = root_dir / "processed/transactions/day=1"
     images_path = root_dir / "assets/product_images"
+    large_files_path = root_dir / "landing/large_files"
     images_path.mkdir(parents=True, exist_ok=True)
+
+    large_files_path.mkdir(parents=True, exist_ok=True)
     
     # Create directories
     users_path.mkdir(parents=True, exist_ok=True)
     transactions_path.mkdir(parents=True, exist_ok=True)
+
+    HUGE_FILE_ROWS = 2_500_000
+    print(f"Generating a large CSV with {HUGE_FILE_ROWS:,} rows. This may take a moment...")
+    huge_data = {
+        'user_id': range(HUGE_FILE_ROWS),
+        'email': [f'user_{i}@massive-data.com' for i in range(HUGE_FILE_ROWS)],
+        "username": [f'user_{i}' for i in range(HUGE_FILE_ROWS)],
+        'status': ['active'] * HUGE_FILE_ROWS
+    }
+    for i in range(15):
+        huge_data[f"username{i}"]= huge_data["username"]
+    huge_data["nuu"] = [None  for i in range(HUGE_FILE_ROWS)]
+    huge_df = pd.DataFrame(huge_data)
+    random_index = np.random.choice(huge_df.index)
+    huge_df.at[random_index, "email"] = "https://hello.com"
+    huge_df.at[random_index, "status"] = "http://hello.com"
+
+    print(huge_df.at[random_index,"email"],random_index)
+    huge_file_path = large_files_path / "huge_user_file.csv"
+    huge_df.to_csv(huge_file_path, index=False)
+    print(f"Created: {huge_file_path}")
 
     # 1. Create a GOOD CSV file that should pass validation
     good_data = {
@@ -58,13 +82,13 @@ def setup_test_directory(root_dir: Path):
     pd.DataFrame(transaction_data).to_parquet(transactions_path / "transactions.parquet")
     print(f"Created: {transactions_path / 'transactions.parquet'}")
 
-    valid_image_path = images_path / "product_good.jpg"
-    good_image_data = np.zeros((10, 10, 3), dtype=np.uint8) # Start with black
-    good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
-    cv2.imwrite(str(valid_image_path), good_image_data)
-    print(f"Created: {valid_image_path}")
+    # valid_image_path = images_path / "product_good.jpg"
+    # good_image_data = np.zeros((10, 10, 3), dtype=np.uint8) # Start with black
+    # good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
+    # cv2.imwrite(str(valid_image_path), good_image_data)
+    # print(f"Created: {valid_image_path}")
 
-    # 2. A completely BLACK image (should fail)
+    # # 2. A completely BLACK image (should fail)
     black_image_path = images_path / "product_black.jpg"
     black_image_data = np.zeros((10, 10, 3), dtype=np.uint8)
     cv2.imwrite(str(black_image_path), black_image_data)
@@ -114,14 +138,16 @@ def setup_test_directory(root_dir: Path):
 
 def main():
     """Main execution function."""
-    test_dir = Path("/home/coder/persistent/datalayer/tools/data_platform/ryn/data/data_validation/landing")
+    script_dir = Path(__file__).parent
     
+    # Define the test data directory to be created inside the script's directory.
+    test_dir = script_dir / "landing"
     # 1. Set up the test environment
     config_path = setup_test_directory(test_dir)
 
     # 2. Load the configuration from the YAML file
     print("\n--- Loading configuration ---")
-    with open("/home/coder/persistent/datalayer/tools/data_platform/ryn/data/data_validation/validation_config.yaml", 'r') as f:
+    with open(script_dir/"validation_config.yaml", 'r') as f:
         config = yaml.safe_load(f)
     print("Configuration loaded successfully.")
 
@@ -134,14 +160,16 @@ def main():
 
     # 5. Display the results in a user-friendly format
     print("\n--- Validation Report ---")
-    print(f"Directory: {report.directory_path}")
-    print(f"Overall Status: {report.overall_status}")
+    print(report)
+
     print("-" * 25)
 
     for result in report.results:
         status = "✅ PASSED" if result.is_valid else "❌ FAILED"
-        print(f"File: {result.file_path}")
+        duration_info = f"({result.duration_seconds:.4f}s)" if result.duration_seconds is not None else ""
+        print(f"File: {result.file_path} {duration_info}")
         print(f"Status: {status}")
+        
         if not result.is_valid:
             print("Errors:")
             for error in result.errors:
@@ -151,9 +179,12 @@ def main():
                 print(f"    Details: {error.get('error')}")
                 if 'example' in error:
                     print(f"   example: {error.get('example')}")
+        for warning in result.warnings:
+            print(f"   warning: {warning}")
 
         print("-" * 25)
-
+    
+    
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,9 @@ from pathlib import Path
 import cv2
 import re
 import numpy as np 
-
+from collections import defaultdict
+import pyarrow.parquet as pq
+from utils import time_validator
 
 class BaseValidator(ABC):
     """
@@ -47,162 +49,143 @@ class BaseValidator(ABC):
         pass
 
 
+# Add polars to your imports
+import polars as pl
+from typing import Dict, Any, List
+
+# ... (other imports and classes are the same) ...
 
 class TabularValidator(BaseValidator):
-    """
-    Validates structured data files (e.g., CSV, Parquet).
-    
-    It checks for things like required columns, data types, nulls, etc.
-    based on the rules provided during initialization.
-    """
+
+    def __init__(self, rules: Dict[str, Any] | None = None):
+        """Initializes with rules."""
+        super().__init__(rules)
+        # We no longer need to manage chunksize here
+
+    @time_validator
     def validate(self, file_path: str) -> ValidationResult:
         """
-        Executes the validation logic for a tabular data file.
-
-        1. Attempts to load the data into a pandas DataFrame.
-        2. Runs dataset-level checks (e.g., required columns).
-        3. Runs column-level checks (e.g., not null).
-        4. Collects all errors and returns a ValidationResult.
+        Executes validation logic using Polars for high performance.
         """
         errors = []
         warnings = []
-        
-        # 1. Load data
+
         try:
-            df = self._load_data(file_path)
-        except Exception as e:
-            # If loading fails, we can't continue. Return a failure result immediately.
-            errors.append({"check": "file_read", "error": f"Failed to read file: {e}"})
-            return ValidationResult(
-                file_path=file_path,
-                is_valid=False,
-                validator_used="tabular",
-                errors=errors,
-                warnings=warnings
-            )
+            # Step 1: Lazily scan the file (no data is loaded yet)
+            lazy_df = self._scan_data(file_path)
             
-        # 2. Run checks and collect errors
-        errors.extend(self._check_for_links(df))
-        errors.extend(self._check_required_columns(df))
-        errors.extend(self._check_not_null(df))
-        # ... more checks will be added here later
+            # Step 2: Run checks that only need the schema (column names)
+            errors.extend(self._check_required_columns(lazy_df.columns))
 
+            # Step 3: Define all other checks as Polars expressions
+            (
+                not_null_exprs,
+                link_check_exprs,
+                fully_null_col_exprs,
+            ) = self._build_validation_expressions(lazy_df.columns)
 
-        warnings.extend(self._check_fully_null_entities(df))
+            # Step 4: Execute all checks in a single pass over the data
+            results = lazy_df.select(
+                *not_null_exprs,
+                *link_check_exprs,
+                *fully_null_col_exprs,
+                # Expression to count fully null rows
+                pl.all_horizontal(pl.all().is_null()).alias("fully_null_row_count").sum()
+            ).collect() # <-- This is where the work happens
 
-        # 3. Create and return the final result
+            # Step 5: Process the results of the query
+            errors.extend(self._process_polars_results(results))
+            warnings.extend(self._process_polars_warnings(results))
+
+        except Exception as e:
+            errors.append({"check": "file_read_process", "error": f"Failed to read or process file: {e}"})
+            return ValidationResult(file_path, False, "tabular", errors=errors)
+
         is_valid = len(errors) == 0
-        return ValidationResult(
-            file_path=file_path,
-            is_valid=is_valid,
-            validator_used="tabular",
-            errors=errors,
-            warnings=warnings
-        )
+        return ValidationResult(file_path, is_valid, "tabular", errors, warnings)
 
-    def _load_data(self, file_path: str) -> pd.DataFrame:
-        """Loads data from a file path into a pandas DataFrame based on extension."""
+    def _scan_data(self, file_path: str) -> pl.LazyFrame:
+        """Lazily scans a file into a Polars LazyFrame."""
         file_extension = Path(file_path).suffix.lower()
         if file_extension == '.csv':
-            return pd.read_csv(file_path)
+            return pl.scan_csv(file_path)
         elif file_extension == '.parquet':
-            return pd.read_parquet(file_path)
+            return pl.scan_parquet(file_path)
         else:
-            raise ValueError(f"Unsupported file type: '{file_extension}'")
-
-    # --- Private Helper Methods for Specific Checks ---
-
-    def _check_required_columns(self, df: pd.DataFrame) -> List[Dict]:
-        """Checks if all required columns are present in the DataFrame."""
+            raise ValueError(f"Unsupported file type for Polars: '{file_extension}'")
+            
+    def _check_required_columns(self, actual_cols: List[str]) -> List[Dict]:
+        """Checks for required columns using the schema."""
         errors = []
         required_cols = self.rules.get("dataset", {}).get("required_columns", [])
         if not required_cols:
-            return errors  # No columns were required
+            return errors
 
-        actual_cols = set(df.columns)
-        missing_cols = set(required_cols) - actual_cols
-        
+        missing_cols = set(required_cols) - set(actual_cols)
         if missing_cols:
             errors.append({
                 "check": "required_columns",
-                "error": f"Missing required columns: {sorted(list(missing_cols))}"
+                "error": f"Missing required columns: {sorted(list(missing_cols))}",
             })
         return errors
 
-    def _check_not_null(self, df: pd.DataFrame) -> List[Dict]:
-        """Checks for null values in columns that are specified as 'not_null'."""
-        errors = []
+    def _build_validation_expressions(self, columns: List[str]) -> tuple:
+        """Creates lists of Polars expressions for all our checks."""
+        not_null_exprs = []
+        link_check_exprs = []
+        fully_null_col_exprs = []
+        
         column_rules = self.rules.get("columns", {})
-        if not column_rules:
-            return errors
+        link_pattern = r'(?:https?://|ftp://|www\.)'
 
-        for col_name, rules in column_rules.items():
-            if rules.get("not_null") and col_name in df.columns:
-                null_count = df[col_name].isnull().sum()
-                if null_count > 0:
-                    errors.append({
-                        "check": "not_null",
-                        "column": col_name,
-                        "error": f"Found {null_count} null values."
-                    })
-        return errors
-    def _check_fully_null_entities(self, df: pd.DataFrame) -> List[Dict]:
-        """
-        Checks for and creates warnings for fully null columns or rows.
-        This does not cause the validation to fail.
-        """
-        warnings = []
-        
-        # 1. Check for fully null columns
-        null_columns = df.columns[df.isnull().all()]
-        for col_name in null_columns:
-            warnings.append({
-                "check": "fully_null_column",
-                "column": col_name,
-                "warning": f"Column '{col_name}' is entirely null."
-            })
-
-        # 2. Check for fully null rows
-        null_row_count = df.isnull().all(axis=1).sum()
-        if null_row_count > 0:
-            warnings.append({
-                "check": "fully_null_row",
-                "warning": f"Found {null_row_count} row(s) that are entirely null."
-            })
+        for col_name in columns:
+            # Expression for not-null checks
+            if column_rules.get(col_name, {}).get("not_null"):
+                expr = pl.col(col_name).is_null().sum().alias(f"not_null_{col_name}")
+                not_null_exprs.append(expr)
             
-        return warnings
-    def _check_for_links(self, df: pd.DataFrame) -> List[Dict]:
-        """
-        Scans all string-like columns for URLs. This is a safety check.
-        Any detected link will be reported as an error.
-        """
+            # Expression for link checks (on string columns)
+            # Note: Polars needs explicit casting for some operations
+            expr_link = pl.col(col_name).cast(pl.Utf8).str.contains(link_pattern).any().alias(f"link_{col_name}")
+            link_check_exprs.append(expr_link)
+
+            # Expression to see if a column is entirely null
+            expr_null_col = pl.col(col_name).is_null().all().alias(f"fully_null_{col_name}")
+            fully_null_col_exprs.append(expr_null_col)
+            
+        return not_null_exprs, link_check_exprs, fully_null_col_exprs
+
+    def _process_polars_results(self, results_df: pl.DataFrame) -> List[Dict]:
+        """Processes the collected Polars results to generate error messages."""
         errors = []
-        # This regex looks for common URL prefixes.
-        link_pattern = re.compile(r'(https?://|ftp://|www\.)', re.IGNORECASE)
-        
-        # Select only columns that could contain strings ('object' dtype)
-        string_columns = df.select_dtypes(include=['object']).columns
-
-        for col_name in string_columns:
-            # Ensure we're working with strings and handle nulls gracefully
-            # na=False treats NaN/None values as not containing a link.
-            matches = df[col_name].astype(str).str.contains(link_pattern, na=False, regex=True)
-            
-            if matches.any():
-                # Find the first offending value to include as an example in the error
-                first_offender = df[col_name][matches].iloc[0]
-                errors.append({
-                    "check": "contains_links",
-                    "column": col_name,
-                    "error": f"Disallowed link found in column.",
-                    "example": str(first_offender)[:100] # Show up to 100 chars
-                })
+        row = results_df.row(0, named=True) # Get the single result row as a dict
+        for col_name, value in row.items():
+            if col_name.startswith("not_null_") and value > 0:
+                original_col = col_name.replace("not_null_", "")
+                errors.append({"check": "not_null", "column": original_col, "error": f"Found {value} null values."})
+            elif col_name.startswith("link_") and value is True:
+                original_col = col_name.replace("link_", "")
+                errors.append({"check": "contains_links", "column": original_col, "error": "Disallowed link found in column."})
         return errors
+
+    def _process_polars_warnings(self, results_df: pl.DataFrame) -> List[Dict]:
+        """Processes the collected Polars results to generate warning messages."""
+        warnings = []
+        row = results_df.row(0, named=True)
+        for col_name, value in row.items():
+            if col_name.startswith("fully_null_") and value is True:
+                original_col = col_name.replace("fully_null_", "")
+                warnings.append({"check": "fully_null_column", "column": original_col, "warning": f"Column '{original_col}' is entirely null."})
+
+        if row.get("fully_null_row_count", 0) > 0:
+            warnings.append({"check": "fully_null_row", "warning": f"Found {row['fully_null_row_count']} row(s) that are entirely null."})
+        return warnings
 
 class ImageValidator(BaseValidator):
     """
     Validates image files by attempting to load them.
     """
+    @time_validator
     def validate(self, file_path: str) -> ValidationResult:
         """
         Applies a simple 'is loadable' check using OpenCV.
