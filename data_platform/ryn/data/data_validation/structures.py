@@ -10,10 +10,12 @@ class ValidationResult:
     is_valid: bool
     validator_used: str
     errors: List[Dict[str, Any]] = field(default_factory=list)
+    warnings: List[Dict[str, Any]] = field(default_factory=list)
+
 
     def __repr__(self):
         status = "PASSED" if self.is_valid else "FAILED"
-        return f"ValidationResult(file='{self.file_path}', status='{status}', errors={len(self.errors)})"
+        return f"ValidationResult(file='{self.file_path}', status='{status}', errors={len(self.errors)}, warnings= {len(self.warnings)})"
 
 @dataclass
 class ValidationReport:

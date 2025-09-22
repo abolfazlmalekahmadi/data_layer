@@ -5,6 +5,8 @@ from typing import Dict, Any, List
 from structures import ValidationResult
 import pandas as pd
 from pathlib import Path
+import cv2
+import re
 
 
 class BaseValidator(ABC):
@@ -62,6 +64,7 @@ class TabularValidator(BaseValidator):
         4. Collects all errors and returns a ValidationResult.
         """
         errors = []
+        warnings = []
         
         # 1. Load data
         try:
@@ -73,13 +76,18 @@ class TabularValidator(BaseValidator):
                 file_path=file_path,
                 is_valid=False,
                 validator_used="tabular",
-                errors=errors
+                errors=errors,
+                warnings=warnings
             )
             
         # 2. Run checks and collect errors
+        errors.extend(self._check_for_links(df))
         errors.extend(self._check_required_columns(df))
         errors.extend(self._check_not_null(df))
         # ... more checks will be added here later
+
+
+        warnings.extend(self._check_fully_null_entities(df))
 
         # 3. Create and return the final result
         is_valid = len(errors) == 0
@@ -87,7 +95,8 @@ class TabularValidator(BaseValidator):
             file_path=file_path,
             is_valid=is_valid,
             validator_used="tabular",
-            errors=errors
+            errors=errors,
+            warnings=warnings
         )
 
     def _load_data(self, file_path: str) -> pd.DataFrame:
@@ -136,21 +145,101 @@ class TabularValidator(BaseValidator):
                         "error": f"Found {null_count} null values."
                     })
         return errors
+    def _check_fully_null_entities(self, df: pd.DataFrame) -> List[Dict]:
+        """
+        Checks for and creates warnings for fully null columns or rows.
+        This does not cause the validation to fail.
+        """
+        warnings = []
+        
+        # 1. Check for fully null columns
+        null_columns = df.columns[df.isnull().all()]
+        for col_name in null_columns:
+            warnings.append({
+                "check": "fully_null_column",
+                "column": col_name,
+                "warning": f"Column '{col_name}' is entirely null."
+            })
 
+        # 2. Check for fully null rows
+        null_row_count = df.isnull().all(axis=1).sum()
+        if null_row_count > 0:
+            warnings.append({
+                "check": "fully_null_row",
+                "warning": f"Found {null_row_count} row(s) that are entirely null."
+            })
+            
+        return warnings
+    def _check_for_links(self, df: pd.DataFrame) -> List[Dict]:
+        """
+        Scans all string-like columns for URLs. This is a safety check.
+        Any detected link will be reported as an error.
+        """
+        errors = []
+        # This regex looks for common URL prefixes.
+        link_pattern = re.compile(r'(https?://|ftp://|www\.)', re.IGNORECASE)
+        
+        # Select only columns that could contain strings ('object' dtype)
+        string_columns = df.select_dtypes(include=['object']).columns
+
+        for col_name in string_columns:
+            # Ensure we're working with strings and handle nulls gracefully
+            # na=False treats NaN/None values as not containing a link.
+            matches = df[col_name].astype(str).str.contains(link_pattern, na=False, regex=True)
+            
+            if matches.any():
+                # Find the first offending value to include as an example in the error
+                first_offender = df[col_name][matches].iloc[0]
+                errors.append({
+                    "check": "contains_links",
+                    "column": col_name,
+                    "error": f"Disallowed link found in column.",
+                    "example": str(first_offender)[:100] # Show up to 100 chars
+                })
+        return errors
 
 class ImageValidator(BaseValidator):
     """
-    Validates image files.
+    Validates image files by attempting to load them.
     """
     def validate(self, file_path: str) -> ValidationResult:
         """
-        1. Opens the image file (e.g., using Pillow or OpenCV).
-        2. Applies rules for dimensions, file size, format, aspect ratio, etc.
-        3. Returns the result.
+        Applies a simple 'is loadable' check using OpenCV.
+        
+        Returns a valid result if cv2.imread() successfully loads the image,
+        and an invalid result if it returns None or an exception occurs.
         """
-        pass
-    
-    # Internal helpers like _check_dimensions, _check_format, etc.
+        errors = []
+        is_valid = False # Assume failure until proven otherwise
+
+        try:
+            # Attempt to read the image file
+            image = cv2.imread(file_path)
+            
+            if image is not None:
+                # If the image object is not None, the file is a valid, loadable image
+                is_valid = True
+            else:
+                # cv2.imread returns None for corrupt, unsupported, or non-existent files
+                errors.append({
+                    "check": "image_loadable",
+                    "error": "OpenCV could not read the image. It may be corrupt, have an invalid path, or be an unsupported format."
+                })
+
+        except Exception as e:
+            # Catch any other unexpected OS-level or library errors
+            errors.append({
+                "check": "file_read_exception",
+                "error": f"An unexpected error occurred while trying to read the image: {e}"
+            })
+
+        return ValidationResult(
+            file_path=file_path,
+            is_valid=is_valid,
+            validator_used="image",
+            errors=errors
+            # warnings list is empty by default, which is fine
+        )
 
 class JsonValidator(BaseValidator):
     """
