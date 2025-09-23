@@ -10,10 +10,16 @@ from data.data_ingestion.handlers.conditions import DatasetConditionChecker
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
 
+from data.data_validation.validation import DirectoryValidator
+
 logger = logging.getLogger(__name__)
 
 
 class HuggingFaceHandler:
+    config = [{'name': 'Validate User CSVs', 'path_pattern': '**/*.csv', 'validator': 'tabular'},
+            {'name': 'Validate Transaction Parquet Files', 'path_pattern': '**/*.parquet', 'validator': 'tabular'}, 
+            {'name': 'Validate for Image files', 'path_pattern': '**/*.jpg', 'validator': 'image'}, 
+            {'name': 'Validate for Image files(png)', 'path_pattern': '**/*.png', 'validator': 'image'}]
     def process(
         self,
         dataset_name: str,
@@ -88,6 +94,32 @@ class HuggingFaceHandler:
                 file_path="",
                 summary=f"Raw file download of the Hugging Face dataset '{dataset_name}' at revision '{revision}'.",
             )
+
+            # --- Step 3: Validate downloaded files ---
+            logger.info(f"Validating downloaded files in: {local_dataset_dir}")
+            validator = DirectoryValidator(self.config)
+            report = validator.validate(str(local_dataset_dir))
+            logger.info(f"Validation report: {report}")
+            if report.has_failures():
+                error_details = [
+                    {
+                        "file": result.file_path,
+                        "errors": result.errors,
+                        "warnings": result.warnings,
+                    }
+                    for result in report.results
+                    if not result.is_valid
+                ]
+                logger.error(
+                    f"Validation failed for some files in dataset '{dataset_name}'."
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Validation failed for some files.",
+                        "errors": error_details,
+                    },
+                )
 
             # move dataset to PVC permanent place and upload to s3 if s3_config provided
             stored_path = storage_handler.store_dataset(

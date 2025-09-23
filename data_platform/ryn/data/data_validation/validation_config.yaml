@@ -6,10 +6,6 @@
       #     required_columns:
       #       - "user_id"
       #       - "email"
-        columns:
-          nuu:
-            not_null: true
-
     - name: "Validate Transaction Parquet Files"
       path_pattern: "**/*.parquet"
       validator: "tabular"

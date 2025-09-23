@@ -179,6 +179,8 @@ def main():
     print("\n--- Loading configuration ---")
     with open(script_dir/"validation_config.yaml", 'r') as f:
         config = yaml.safe_load(f)
+
+    print(config)
     print("Configuration loaded successfully.")
 
     # 3. Initialize the DirectoryValidator with the config
