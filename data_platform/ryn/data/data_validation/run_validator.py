@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 import cv2
 import numpy as np 
-
+import shutil
 
 # Import the main orchestrator class
 from validation import DirectoryValidator
@@ -27,51 +27,81 @@ def setup_test_directory(root_dir: Path):
     transactions_path.mkdir(parents=True, exist_ok=True)
 
     HUGE_FILE_ROWS = 2_500_000
-    print(f"Generating a large CSV with {HUGE_FILE_ROWS:,} rows. This may take a moment...")
-    huge_data = {
-        'user_id': range(HUGE_FILE_ROWS),
-        'email': [f'user_{i}@massive-data.com' for i in range(HUGE_FILE_ROWS)],
-        "username": [f'user_{i}' for i in range(HUGE_FILE_ROWS)],
-        'status': ['active'] * HUGE_FILE_ROWS
-    }
-    for i in range(15):
-        huge_data[f"username{i}"]= huge_data["username"]
-    huge_data["nuu"] = [None  for i in range(HUGE_FILE_ROWS)]
-    huge_df = pd.DataFrame(huge_data)
-    random_index = np.random.choice(huge_df.index)
-    huge_df.at[random_index, "email"] = "https://hello.com"
-    huge_df.at[random_index, "status"] = "http://hello.com"
+    # print(f"Generating a large CSV with {HUGE_FILE_ROWS:,} rows. This may take a moment...")
+    # huge_data = {
+    #     'user_id': range(HUGE_FILE_ROWS),
+    #     'email': [f'user_{i}@massive-data.com' for i in range(HUGE_FILE_ROWS)],
+    #     "username": [f'user_{i}' for i in range(HUGE_FILE_ROWS)],
+    #     'status': ['active'] * HUGE_FILE_ROWS
+    # }
+    # for i in range(15):
+    #     huge_data[f"username{i}"]= huge_data["username"]
+    # huge_data["nuu"] = [None  for i in range(HUGE_FILE_ROWS)]
+    # huge_df = pd.DataFrame(huge_data)
+    # random_index = np.random.choice(huge_df.index)
+    # huge_df.at[random_index, "email"] = "https://hello.com"
+    # huge_df.at[random_index, "status"] = "http://hello.com"
 
-    print(huge_df.at[random_index,"email"],random_index)
-    huge_file_path = large_files_path / "huge_user_file.csv"
-    huge_df.to_csv(huge_file_path, index=False)
-    print(f"Created: {huge_file_path}")
+    # print(huge_df.at[random_index,"email"],random_index)
+    # huge_file_path = large_files_path / "huge_user_file.csv"
+    # huge_df.to_csv(huge_file_path, index=False)
+    # print(f"Created: {huge_file_path}")
+    zips_path = root_dir / "landing/zips" # NEW: Directory for zip files
+    zips_path.mkdir(parents=True, exist_ok=True)
+
+    # ... (all previous file creation is the same) ...
+
+    # --- NEW: Create a CSV and then zip it up ---
+    zipped_csv_data = {
+        "order_id": ["A101", "B202"],
+        "product_id": [123, 456],
+        "quantity": [2, 1]
+    }
+    temp_csv_path = root_dir / "temp_orders.csv"
+    pd.DataFrame(zipped_csv_data).to_csv(temp_csv_path, index=False)
+
+
+    zipped_csv_data2 = {
+        "order_id": ["A10{i}" for i in range(HUGE_FILE_ROWS)],
+        "product_id": [123 for i in range(HUGE_FILE_ROWS)],
+        "quantity": [2 for i in range(HUGE_FILE_ROWS)],
+        "username": [f'https://user_{i}.com' for i in range(HUGE_FILE_ROWS)]
+    }
+    temp_csv_path = root_dir / "temp_orders2.csv"
+    pd.DataFrame(zipped_csv_data2).to_csv(temp_csv_path, index=False)
+    
+    # Create the zip archive
+    zip_archive_path = zips_path / "orders_archive" # Note: .zip is added automatically
+    shutil.make_archive(str(zip_archive_path), 'zip', root_dir, "temp_orders.csv")
+    shutil.make_archive(str(zip_archive_path), 'zip', root_dir, "temp_orders2.csv")
+    os.remove(temp_csv_path) # Clean up the temporary source CSV
+    print(f"Created archive: {zip_archive_path}.zip")
 
     # 1. Create a GOOD CSV file that should pass validation
-    good_data = {
-        "user_id": [1, 2, 3],
-        "email": ["one@test.com", "two@test.com", "three@test.com"],
-        "age": [25, 30, 35]
-    }
-    pd.DataFrame(good_data).to_csv(users_path / "users_good.csv", index=False)
-    print(f"Created: {users_path / 'users_good.csv'}")
+    # good_data = {
+    #     "user_id": [1, 2, 3],
+    #     "email": ["one@test.com", "two@test.com", "three@test.com"],
+    #     "age": [25, 30, 35]
+    # }
+    # pd.DataFrame(good_data).to_csv(users_path / "users_good.csv", index=False)
+    # print(f"Created: {users_path / 'users_good.csv'}")
 
     # 2. Create a BAD CSV file that should fail validation
     #    - 'user_id' contains a null value (violates not_null)
     #    - 'email' column is missing (violates required_columns)
-    link_data = {
-        "user_id": [9, 10],
-        "email": ["nine@test.com", "ten@test.com"],
-        "comment": ["All good", "Please see details at http://malicious-site.com"]
-    }
-    pd.DataFrame(link_data).to_csv(users_path / "users_with_links.csv", index=False)
-    print(f"Created: {users_path / 'users_with_links.csv'}")
-    bad_data = {
-        "user_id": [4, None, 6],
-        "age": [40, 45, 50]
-    }
-    pd.DataFrame(bad_data).to_csv(users_path / "users_bad.csv", index=False)
-    print(f"Created: {users_path / 'users_bad.csv'}")
+    # link_data = {
+    #     "user_id": [9, 10],
+    #     "email": ["nine@test.com", "ten@test.com"],
+    #     "comment": ["All good", "Please see details at http://malicious-site.com"]
+    # }
+    # pd.DataFrame(link_data).to_csv(users_path / "users_with_links.csv", index=False)
+    # print(f"Created: {users_path / 'users_with_links.csv'}")
+    # bad_data = {
+    #     "user_id": [4, None, 6],
+    #     "age": [40, 45, 50]
+    # }
+    # pd.DataFrame(bad_data).to_csv(users_path / "users_bad.csv", index=False)
+    # print(f"Created: {users_path / 'users_bad.csv'}")
 
     # 3. Create a valid Parquet file to test a different file type and pattern
     transaction_data = {
