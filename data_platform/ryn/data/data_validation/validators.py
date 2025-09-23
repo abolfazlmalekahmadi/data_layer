@@ -1,16 +1,13 @@
-
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
-
-from structures import ValidationResult
-import pandas as pd
 from pathlib import Path
+from typing import Any, Dict, List
+
 import cv2
-import re
-import numpy as np 
-from collections import defaultdict
-import pyarrow.parquet as pq
+import numpy as np
+import polars as pl
+from structures import ValidationResult
 from utils import time_validator
+
 
 class BaseValidator(ABC):
     """
@@ -49,14 +46,7 @@ class BaseValidator(ABC):
         pass
 
 
-# Add polars to your imports
-import polars as pl
-from typing import Dict, Any, List
-
-# ... (other imports and classes are the same) ...
-
 class TabularValidator(BaseValidator):
-
     def __init__(self, rules: Dict[str, Any] | None = None):
         """Initializes with rules."""
         super().__init__(rules)
@@ -73,7 +63,7 @@ class TabularValidator(BaseValidator):
         try:
             # Step 1: Lazily scan the file (no data is loaded yet)
             lazy_df = self._scan_data(file_path)
-            
+
             # Step 2: Run checks that only need the schema (column names)
             errors.extend(self._check_required_columns(lazy_df.columns))
 
@@ -90,15 +80,22 @@ class TabularValidator(BaseValidator):
                 *link_check_exprs,
                 *fully_null_col_exprs,
                 # Expression to count fully null rows
-                pl.all_horizontal(pl.all().is_null()).alias("fully_null_row_count").sum()
-            ).collect() # <-- This is where the work happens
+                pl.all_horizontal(pl.all().is_null())
+                .alias("fully_null_row_count")
+                .sum(),
+            ).collect()  # <-- This is where the work happens
 
             # Step 5: Process the results of the query
             errors.extend(self._process_polars_results(results))
             warnings.extend(self._process_polars_warnings(results))
 
         except Exception as e:
-            errors.append({"check": "file_read_process", "error": f"Failed to read or process file: {e}"})
+            errors.append(
+                {
+                    "check": "file_read_process",
+                    "error": f"Failed to read or process file: {e}",
+                }
+            )
             return ValidationResult(file_path, False, "tabular", errors=errors)
 
         is_valid = len(errors) == 0
@@ -107,13 +104,13 @@ class TabularValidator(BaseValidator):
     def _scan_data(self, file_path: str) -> pl.LazyFrame:
         """Lazily scans a file into a Polars LazyFrame."""
         file_extension = Path(file_path).suffix.lower()
-        if file_extension == '.csv':
+        if file_extension == ".csv":
             return pl.scan_csv(file_path)
-        elif file_extension == '.parquet':
+        elif file_extension == ".parquet":
             return pl.scan_parquet(file_path)
         else:
             raise ValueError(f"Unsupported file type for Polars: '{file_extension}'")
-            
+
     def _check_required_columns(self, actual_cols: List[str]) -> List[Dict]:
         """Checks for required columns using the schema."""
         errors = []
@@ -123,10 +120,12 @@ class TabularValidator(BaseValidator):
 
         missing_cols = set(required_cols) - set(actual_cols)
         if missing_cols:
-            errors.append({
-                "check": "required_columns",
-                "error": f"Missing required columns: {sorted(list(missing_cols))}",
-            })
+            errors.append(
+                {
+                    "check": "required_columns",
+                    "error": f"Missing required columns: {sorted(list(missing_cols))}",
+                }
+            )
         return errors
 
     def _build_validation_expressions(self, columns: List[str]) -> tuple:
@@ -134,38 +133,58 @@ class TabularValidator(BaseValidator):
         not_null_exprs = []
         link_check_exprs = []
         fully_null_col_exprs = []
-        
+
         column_rules = self.rules.get("columns", {})
-        link_pattern = r'(?:https?://|ftp://|www\.)'
+        link_pattern = r"(?:https?://|ftp://|www\.)"
 
         for col_name in columns:
             # Expression for not-null checks
             if column_rules.get(col_name, {}).get("not_null"):
                 expr = pl.col(col_name).is_null().sum().alias(f"not_null_{col_name}")
                 not_null_exprs.append(expr)
-            
+
             # Expression for link checks (on string columns)
             # Note: Polars needs explicit casting for some operations
-            expr_link = pl.col(col_name).cast(pl.Utf8).str.contains(link_pattern).any().alias(f"link_{col_name}")
+            expr_link = (
+                pl.col(col_name)
+                .cast(pl.Utf8)
+                .str.contains(link_pattern)
+                .any()
+                .alias(f"link_{col_name}")
+            )
             link_check_exprs.append(expr_link)
 
             # Expression to see if a column is entirely null
-            expr_null_col = pl.col(col_name).is_null().all().alias(f"fully_null_{col_name}")
+            expr_null_col = (
+                pl.col(col_name).is_null().all().alias(f"fully_null_{col_name}")
+            )
             fully_null_col_exprs.append(expr_null_col)
-            
+
         return not_null_exprs, link_check_exprs, fully_null_col_exprs
 
     def _process_polars_results(self, results_df: pl.DataFrame) -> List[Dict]:
         """Processes the collected Polars results to generate error messages."""
         errors = []
-        row = results_df.row(0, named=True) # Get the single result row as a dict
+        row = results_df.row(0, named=True)  # Get the single result row as a dict
         for col_name, value in row.items():
             if col_name.startswith("not_null_") and value > 0:
                 original_col = col_name.replace("not_null_", "")
-                errors.append({"check": "not_null", "column": original_col, "error": f"Found {value} null values."})
+                errors.append(
+                    {
+                        "check": "not_null",
+                        "column": original_col,
+                        "error": f"Found {value} null values.",
+                    }
+                )
             elif col_name.startswith("link_") and value is True:
                 original_col = col_name.replace("link_", "")
-                errors.append({"check": "contains_links", "column": original_col, "error": "Disallowed link found in column."})
+                errors.append(
+                    {
+                        "check": "contains_links",
+                        "column": original_col,
+                        "error": "Disallowed link found in column.",
+                    }
+                )
         return errors
 
     def _process_polars_warnings(self, results_df: pl.DataFrame) -> List[Dict]:
@@ -175,47 +194,64 @@ class TabularValidator(BaseValidator):
         for col_name, value in row.items():
             if col_name.startswith("fully_null_") and value is True:
                 original_col = col_name.replace("fully_null_", "")
-                warnings.append({"check": "fully_null_column", "column": original_col, "warning": f"Column '{original_col}' is entirely null."})
+                warnings.append(
+                    {
+                        "check": "fully_null_column",
+                        "column": original_col,
+                        "warning": f"Column '{original_col}' is entirely null.",
+                    }
+                )
 
         if row.get("fully_null_row_count", 0) > 0:
-            warnings.append({"check": "fully_null_row", "warning": f"Found {row['fully_null_row_count']} row(s) that are entirely null."})
+            warnings.append(
+                {
+                    "check": "fully_null_row",
+                    "warning": f"Found {row['fully_null_row_count']} row(s) that are entirely null.",
+                }
+            )
         return warnings
+
 
 class ImageValidator(BaseValidator):
     """
     Validates image files by attempting to load them.
     """
+
     @time_validator
     def validate(self, file_path: str) -> ValidationResult:
         """
         Applies a simple 'is loadable' check using OpenCV.
-        
+
         Returns a valid result if cv2.imread() successfully loads the image,
         and an invalid result if it returns None or an exception occurs.
         """
         errors = []
-        is_valid = False # Assume failure until proven otherwise
+        is_valid = False  # Assume failure until proven otherwise
 
         try:
             # Attempt to read the image file
             image = cv2.imread(file_path)
-            
+
             if image is not None:
                 # If the image object is not None, the file is a valid, loadable image
                 is_valid = True
             else:
                 # cv2.imread returns None for corrupt, unsupported, or non-existent files
-                errors.append({
-                    "check": "image_loadable",
-                    "error": "OpenCV could not read the image. It may be corrupt, have an invalid path, or be an unsupported format."
-                })
+                errors.append(
+                    {
+                        "check": "image_loadable",
+                        "error": "OpenCV could not read the image. It may be corrupt, have an invalid path, or be an unsupported format.",
+                    }
+                )
 
         except Exception as e:
             # Catch any other unexpected OS-level or library errors
-            errors.append({
-                "check": "file_read_exception",
-                "error": f"An unexpected error occurred while trying to read the image: {e}"
-            })
+            errors.append(
+                {
+                    "check": "file_read_exception",
+                    "error": f"An unexpected error occurred while trying to read the image: {e}",
+                }
+            )
 
         errors.extend(self._check_solid_color(image))
 
@@ -224,9 +260,10 @@ class ImageValidator(BaseValidator):
             file_path=file_path,
             is_valid=is_valid,
             validator_used="image",
-            errors=errors
+            errors=errors,
             # warnings list is empty by default, which is fine
         )
+
     def _check_solid_color(self, image: np.ndarray) -> list:
         """
         Checks if the image is completely one color (e.g., all black or all white).
@@ -245,25 +282,28 @@ class ImageValidator(BaseValidator):
         if min_val == max_val:
             # All pixels have the same value, so it's a solid color
             if min_val == 0:
-                errors.append({
-                    "check": "solid_color",
-                    "error": "Image is completely black."
-                })
+                errors.append(
+                    {"check": "solid_color", "error": "Image is completely black."}
+                )
             elif min_val == 255:
-                errors.append({
-                    "check": "solid_color",
-                    "error": "Image is completely white."
-                })
+                errors.append(
+                    {"check": "solid_color", "error": "Image is completely white."}
+                )
             else:
-                 errors.append({
-                    "check": "solid_color",
-                    "error": f"Image is a solid color with pixel value {min_val}."
-                })
+                errors.append(
+                    {
+                        "check": "solid_color",
+                        "error": f"Image is a solid color with pixel value {min_val}.",
+                    }
+                )
         return errors
+
+
 class JsonValidator(BaseValidator):
     """
     Validates JSON files, typically against a JSON Schema.
     """
+
     def validate(self, file_path: str) -> ValidationResult:
         """
         1. Loads the JSON file.
