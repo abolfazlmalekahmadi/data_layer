@@ -9,17 +9,35 @@ from huggingface_hub import HfApi, snapshot_download
 from data.data_ingestion.handlers.conditions import DatasetConditionChecker
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
-
 from data.data_validation.validation import DirectoryValidator
 
 logger = logging.getLogger(__name__)
 
 
 class HuggingFaceHandler:
-    config = [{'name': 'Validate User CSVs', 'path_pattern': '**/*.csv', 'validator': 'tabular'},
-            {'name': 'Validate Transaction Parquet Files', 'path_pattern': '**/*.parquet', 'validator': 'tabular'}, 
-            {'name': 'Validate for Image files', 'path_pattern': '**/*.jpg', 'validator': 'image'}, 
-            {'name': 'Validate for Image files(png)', 'path_pattern': '**/*.png', 'validator': 'image'}]
+    config = [
+        {
+            "name": "Validate User CSVs",
+            "path_pattern": "**/*.csv",
+            "validator": "tabular",
+        },
+        {
+            "name": "Validate Transaction Parquet Files",
+            "path_pattern": "**/*.parquet",
+            "validator": "tabular",
+        },
+        {
+            "name": "Validate for Image files",
+            "path_pattern": "**/*.jpg",
+            "validator": "image",
+        },
+        {
+            "name": "Validate for Image files(png)",
+            "path_pattern": "**/*.png",
+            "validator": "image",
+        },
+    ]
+
     def process(
         self,
         dataset_name: str,

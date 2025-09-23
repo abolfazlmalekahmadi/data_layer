@@ -9,11 +9,34 @@ from data.data_ingestion.handlers.conditions import DatasetConditionChecker
 from data.data_ingestion.handlers.utils import summarize_dataset
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
+from data.data_validation.validation import DirectoryValidator
 
 logger = logging.getLogger(__name__)
 
 
 class S3Handler:
+    config = [
+        {
+            "name": "Validate User CSVs",
+            "path_pattern": "**/*.csv",
+            "validator": "tabular",
+        },
+        {
+            "name": "Validate Transaction Parquet Files",
+            "path_pattern": "**/*.parquet",
+            "validator": "tabular",
+        },
+        {
+            "name": "Validate for Image files",
+            "path_pattern": "**/*.jpg",
+            "validator": "image",
+        },
+        {
+            "name": "Validate for Image files(png)",
+            "path_pattern": "**/*.png",
+            "validator": "image",
+        },
+    ]
     def __init__(
         self, *, access_key: str, secret_key: str, endpoint_url: str, bucket_name: str
     ):
@@ -114,6 +137,35 @@ class S3Handler:
                 summary=summarize_dataset(local_file),
                 dataset_tag=dataset_tag or "ML",
             )
+
+            
+
+
+            logger.info(f"Starting validation for dataset at: {temp_dir}")           
+            validator = DirectoryValidator(config=self.config)
+            report = validator.validate(str(temp_dir))
+            logger.info(f"Validation report: {report}")
+            if report.has_failures():
+                error_details = [
+                    {
+                        "file": result.file_path,
+                        "errors": result.errors,
+                        "warnings": result.warnings,
+                    }
+                    for result in report.results
+                    if not result.is_valid
+                ]
+                logger.error(
+                    f"Validation failed for some files in dataset '{dataset_name}'."
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "message": "Validation failed for some files.",
+                        "errors": error_details,
+                    },
+                )
+
             stored_path = storage_handler.store_dataset(
                 local_file,
                 metadata,
