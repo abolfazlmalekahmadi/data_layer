@@ -7,7 +7,7 @@ import numpy as np
 import shutil
 
 # Import the main orchestrator class
-from validation import DirectoryValidator
+from data.data_validation.validation import DirectoryValidator
 
 def setup_test_directory(root_dir: Path):
     """Creates a sample directory with data files and a config for testing."""

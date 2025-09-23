@@ -5,8 +5,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Type
 
-from validators import TabularValidator, ImageValidator, JsonValidator, BaseValidator
-from structures import ValidationReport, ValidationResult
+from data.data_validation.validators import TabularValidator, ImageValidator, JsonValidator, BaseValidator
+from data.data_validation.structures import ValidationReport, ValidationResult
 
 
 logger = logging.getLogger(__name__)
