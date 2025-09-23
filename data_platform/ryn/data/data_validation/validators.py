@@ -1,314 +1,221 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import cv2
 import numpy as np
 import polars as pl
+
 from structures import ValidationResult
 from utils import time_validator
 
 
 class BaseValidator(ABC):
     """
-    Abstract Base Class (Interface) for all specialized validators.
+    Abstract base class for specialized validators.
 
-    This class defines the "contract" that any validator must follow.
-    It guarantees that every validator will have an `__init__` method that
-    accepts rules and a `validate` method that takes a file path and
-    returns a ValidationResult.
+    All validators must implement:
+      - __init__(rules)
+      - validate(file_path) -> ValidationResult
     """
 
     def __init__(self, rules: Dict[str, Any] | None = None):
-        """
-        Initializes the validator with a specific set of rules.
-
-        Args:
-            rules (Dict[str, Any] | None): A dictionary defining the validation rules.
-                                          Can be None if the validator is rule-free.
-        """
         self.rules = rules or {}
 
     @abstractmethod
     def validate(self, file_path: str) -> ValidationResult:
-        """
-        The core validation method that all subclasses must implement.
-
-        This method should perform the actual validation logic for a given file
-        and return a standardized result object.
-
-        Args:
-            file_path (str): The path to the file to be validated.
-
-        Returns:
-            ValidationResult: An object containing the outcome of the validation.
-        """
-        pass
-
+        """Run validation on the given file path."""
+        ...
 
 class TabularValidator(BaseValidator):
-    def __init__(self, rules: Dict[str, Any] | None = None):
-        """Initializes with rules."""
-        super().__init__(rules)
-        # We no longer need to manage chunksize here
+    """Validates tabular datasets using Polars for performance."""
 
     @time_validator
     def validate(self, file_path: str) -> ValidationResult:
-        """
-        Executes validation logic using Polars for high performance.
-        """
-        errors = []
-        warnings = []
+        errors: List[Dict] = []
+        warnings: List[Dict] = []
 
         try:
-            # Step 1: Lazily scan the file (no data is loaded yet)
             lazy_df = self._scan_data(file_path)
-
-            # Step 2: Run checks that only need the schema (column names)
             errors.extend(self._check_required_columns(lazy_df.columns))
 
-            # Step 3: Define all other checks as Polars expressions
-            (
-                not_null_exprs,
-                link_check_exprs,
-                fully_null_col_exprs,
-            ) = self._build_validation_expressions(lazy_df.columns)
+            exprs = self._build_validation_expressions(lazy_df.columns)
+            results = self._execute_checks(lazy_df, exprs)
 
-            # Step 4: Execute all checks in a single pass over the data
-            results = lazy_df.select(
-                *not_null_exprs,
-                *link_check_exprs,
-                *fully_null_col_exprs,
-                # Expression to count fully null rows
-                pl.all_horizontal(pl.all().is_null())
-                .alias("fully_null_row_count")
-                .sum(),
-            ).collect()  # <-- This is where the work happens
-
-            # Step 5: Process the results of the query
-            errors.extend(self._process_polars_results(results))
-            warnings.extend(self._process_polars_warnings(results))
+            errors.extend(self._process_errors(results))
+            warnings.extend(self._process_warnings(results))
 
         except Exception as e:
-            errors.append(
-                {
-                    "check": "file_read_process",
-                    "error": f"Failed to read or process file: {e}",
-                }
-            )
-            return ValidationResult(file_path, False, "tabular", errors=errors)
+            errors.append({"check": "file_read_process", "error": str(e)})
+            return ValidationResult(file_path, False, "tabular", errors)
 
-        is_valid = len(errors) == 0
-        return ValidationResult(file_path, is_valid, "tabular", errors, warnings)
+        return ValidationResult(
+            file_path,
+            is_valid=not errors,
+            validator_used="tabular",
+            errors=errors,
+            warnings=warnings,
+        )
 
     def _scan_data(self, file_path: str) -> pl.LazyFrame:
-        """Lazily scans a file into a Polars LazyFrame."""
-        file_extension = Path(file_path).suffix.lower()
-        if file_extension == ".csv":
+        """Return a Polars LazyFrame from supported file types."""
+        ext = Path(file_path).suffix.lower()
+        if ext == ".csv":
             return pl.scan_csv(file_path)
-        elif file_extension == ".parquet":
+        if ext == ".parquet":
             return pl.scan_parquet(file_path)
-        else:
-            raise ValueError(f"Unsupported file type for Polars: '{file_extension}'")
+        raise ValueError(f"Unsupported file type: {ext}")
 
     def _check_required_columns(self, actual_cols: List[str]) -> List[Dict]:
-        """Checks for required columns using the schema."""
-        errors = []
-        required_cols = self.rules.get("dataset", {}).get("required_columns", [])
-        if not required_cols:
-            return errors
+        """Verify required columns exist in schema."""
+        required = self.rules.get("dataset", {}).get("required_columns", [])
+        if not required:
+            return []
 
-        missing_cols = set(required_cols) - set(actual_cols)
-        if missing_cols:
-            errors.append(
-                {
-                    "check": "required_columns",
-                    "error": f"Missing required columns: {sorted(list(missing_cols))}",
-                }
-            )
-        return errors
+        missing = sorted(set(required) - set(actual_cols))
+        if missing:
+            return [{"check": "required_columns", "error": f"Missing: {missing}"}]
+        return []
 
-    def _build_validation_expressions(self, columns: List[str]) -> tuple:
-        """Creates lists of Polars expressions for all our checks."""
-        not_null_exprs = []
-        link_check_exprs = []
-        fully_null_col_exprs = []
-
+    def _build_validation_expressions(
+        self, columns: List[str]
+    ) -> Tuple[List[pl.Expr], List[pl.Expr], List[pl.Expr]]:
+        """Generate Polars expressions for null, link, and fully-null checks."""
+        not_null_exprs, link_exprs, null_col_exprs = [], [], []
         column_rules = self.rules.get("columns", {})
         link_pattern = r"(?:https?://|ftp://|www\.)"
 
-        for col_name in columns:
-            # Expression for not-null checks
-            if column_rules.get(col_name, {}).get("not_null"):
-                expr = pl.col(col_name).is_null().sum().alias(f"not_null_{col_name}")
-                not_null_exprs.append(expr)
+        for col in columns:
+            if column_rules.get(col, {}).get("not_null"):
+                not_null_exprs.append(pl.col(col).is_null().sum().alias(f"not_null_{col}"))
 
-            # Expression for link checks (on string columns)
-            # Note: Polars needs explicit casting for some operations
-            expr_link = (
-                pl.col(col_name)
+            link_exprs.append(
+                pl.col(col)
                 .cast(pl.Utf8)
                 .str.contains(link_pattern)
                 .any()
-                .alias(f"link_{col_name}")
+                .alias(f"link_{col}")
             )
-            link_check_exprs.append(expr_link)
 
-            # Expression to see if a column is entirely null
-            expr_null_col = (
-                pl.col(col_name).is_null().all().alias(f"fully_null_{col_name}")
-            )
-            fully_null_col_exprs.append(expr_null_col)
+            null_col_exprs.append(pl.col(col).is_null().all().alias(f"fully_null_{col}"))
 
-        return not_null_exprs, link_check_exprs, fully_null_col_exprs
+        return not_null_exprs, link_exprs, null_col_exprs
 
-    def _process_polars_results(self, results_df: pl.DataFrame) -> List[Dict]:
-        """Processes the collected Polars results to generate error messages."""
+    def _execute_checks(
+        self, lazy_df: pl.LazyFrame, exprs: Tuple[List[pl.Expr], List[pl.Expr], List[pl.Expr]]
+    ) -> pl.DataFrame:
+        """Run all checks in a single Polars query."""
+        not_null_exprs, link_exprs, null_col_exprs = exprs
+        return lazy_df.select(
+            *not_null_exprs,
+            *link_exprs,
+            *null_col_exprs,
+            pl.all_horizontal(pl.all().is_null()).alias("fully_null_row_count").sum(),
+        ).collect()
+
+    def _process_errors(self, results: pl.DataFrame) -> List[Dict]:
+        """Extract error messages from Polars results."""
         errors = []
-        row = results_df.row(0, named=True)  # Get the single result row as a dict
-        for col_name, value in row.items():
-            if col_name.startswith("not_null_") and value > 0:
-                original_col = col_name.replace("not_null_", "")
-                errors.append(
-                    {
-                        "check": "not_null",
-                        "column": original_col,
-                        "error": f"Found {value} null values.",
-                    }
-                )
-            elif col_name.startswith("link_") and value is True:
-                original_col = col_name.replace("link_", "")
-                errors.append(
-                    {
-                        "check": "contains_links",
-                        "column": original_col,
-                        "error": "Disallowed link found in column.",
-                    }
-                )
+        row = results.row(0, named=True)
+
+        for name, val in row.items():
+            if name.startswith("not_null_") and val > 0:
+                col = name.replace("not_null_", "")
+                errors.append({"check": "not_null", "column": col, "error": f"{val} nulls"})
+            elif name.startswith("link_") and val:
+                col = name.replace("link_", "")
+                errors.append({"check": "contains_links", "column": col, "error": "Link found"})
+
         return errors
 
-    def _process_polars_warnings(self, results_df: pl.DataFrame) -> List[Dict]:
-        """Processes the collected Polars results to generate warning messages."""
+    def _process_warnings(self, results: pl.DataFrame) -> List[Dict]:
+        """Extract warning messages from Polars results."""
         warnings = []
-        row = results_df.row(0, named=True)
-        for col_name, value in row.items():
-            if col_name.startswith("fully_null_") and value is True:
-                original_col = col_name.replace("fully_null_", "")
-                warnings.append(
-                    {
-                        "check": "fully_null_column",
-                        "column": original_col,
-                        "warning": f"Column '{original_col}' is entirely null.",
-                    }
-                )
+        row = results.row(0, named=True)
+
+        for name, val in row.items():
+            if name.startswith("fully_null_") and val:
+                col = name.replace("fully_null_", "")
+                warnings.append({"check": "fully_null_column", "column": col, "warning": "All nulls"})
 
         if row.get("fully_null_row_count", 0) > 0:
-            warnings.append(
-                {
-                    "check": "fully_null_row",
-                    "warning": f"Found {row['fully_null_row_count']} row(s) that are entirely null.",
-                }
-            )
+            warnings.append({
+                "check": "fully_null_row",
+                "warning": f"{row['fully_null_row_count']} fully null row(s)",
+            })
+
         return warnings
 
 
+# ---------------- Image Validator ---------------- #
+
 class ImageValidator(BaseValidator):
-    """
-    Validates image files by attempting to load them.
-    """
+    """Validates image files by attempting to load them and checking basic quality."""
 
     @time_validator
     def validate(self, file_path: str) -> ValidationResult:
-        """
-        Applies a simple 'is loadable' check using OpenCV.
-
-        Returns a valid result if cv2.imread() successfully loads the image,
-        and an invalid result if it returns None or an exception occurs.
-        """
-        errors = []
-        is_valid = False  # Assume failure until proven otherwise
+        errors: List[Dict] = []
 
         try:
-            # Attempt to read the image file
             image = cv2.imread(file_path)
-
-            if image is not None:
-                # If the image object is not None, the file is a valid, loadable image
-                is_valid = True
+            if image is None:
+                errors.append({
+                    "check": "image_loadable",
+                    "error": "File not loadable (may be corrupt or unsupported).",
+                })
             else:
-                # cv2.imread returns None for corrupt, unsupported, or non-existent files
-                errors.append(
-                    {
-                        "check": "image_loadable",
-                        "error": "OpenCV could not read the image. It may be corrupt, have an invalid path, or be an unsupported format.",
-                    }
-                )
+                errors.extend(self._check_solid_color(image))
 
         except Exception as e:
-            # Catch any other unexpected OS-level or library errors
-            errors.append(
-                {
-                    "check": "file_read_exception",
-                    "error": f"An unexpected error occurred while trying to read the image: {e}",
-                }
-            )
+            errors.append({"check": "file_read_exception", "error": str(e)})
 
-        errors.extend(self._check_solid_color(image))
-
-        is_valid = len(errors) == 0
         return ValidationResult(
-            file_path=file_path,
-            is_valid=is_valid,
+            file_path,
+            is_valid=not errors,
             validator_used="image",
             errors=errors,
-            # warnings list is empty by default, which is fine
         )
 
-    def _check_solid_color(self, image: np.ndarray) -> list:
-        """
-        Checks if the image is completely one color (e.g., all black or all white).
-        This check only runs if 'disallow_solid_color' is true in the rules.
-        """
-        errors = []
-        # Check if the rule is enabled in the config
-        # if not self.rules.get("disallow_solid_color"):
-        #     return errors # Rule not enabled, so we skip the check
+    def _check_solid_color(self, image: np.ndarray) -> List[Dict]:
+        """Check if the image is a single solid color, if rule is enabled."""
+        if not self.rules.get("disallow_solid_color", True):
+            return []
 
-        # Efficiently check if all pixel values are the same
-        min_val = np.min(image)
-        max_val = np.max(image)
+        min_val, max_val = np.min(image), np.max(image)
+        if min_val != max_val:
+            return []
 
-        # print(min_val,max_val)
-        if min_val == max_val:
-            # All pixels have the same value, so it's a solid color
-            if min_val == 0:
-                errors.append(
-                    {"check": "solid_color", "error": "Image is completely black."}
-                )
-            elif min_val == 255:
-                errors.append(
-                    {"check": "solid_color", "error": "Image is completely white."}
-                )
-            else:
-                errors.append(
-                    {
-                        "check": "solid_color",
-                        "error": f"Image is a solid color with pixel value {min_val}.",
-                    }
-                )
-        return errors
+        if min_val == 0:
+            msg = "Image is completely black."
+        elif min_val == 255:
+            msg = "Image is completely white."
+        else:
+            msg = f"Image is solid color (value {min_val})."
 
+        return [{"check": "solid_color", "error": msg}]
+
+
+# ---------------- JSON Validator ---------------- #
 
 class JsonValidator(BaseValidator):
-    """
-    Validates JSON files, typically against a JSON Schema.
-    """
+    """Validates JSON files, typically against a schema."""
 
     def validate(self, file_path: str) -> ValidationResult:
-        """
-        1. Loads the JSON file.
-        2. Loads the reference JSON Schema (often specified in the rules).
-        3. Validates the data against the schema.
-        4. Returns the result.
-        """
-        pass
+        errors: List[Dict] = []
+
+        try:
+            import json
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # TODO: Add JSON schema validation if `self.rules` contains a schema
+
+        except Exception as e:
+            errors.append({"check": "file_read_or_parse", "error": str(e)})
+
+        return ValidationResult(
+            file_path,
+            is_valid=not errors,
+            validator_used="json",
+            errors=errors,
+        )

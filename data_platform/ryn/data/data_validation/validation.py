@@ -1,130 +1,122 @@
-
-from typing import Dict, Any, List
-
-import pandas as pd
 import os
-from validators import TabularValidator,ImageValidator,JsonValidator,BaseValidator
-from dataclasses import dataclass, field
-from typing import List, Dict, Any
-
 import glob
-from pathlib import Path
-from typing import Dict, Any, List
 import zipfile
-import tempfile
+import logging
+from pathlib import Path
+from typing import Dict, Any, List, Type
 
-from structures import ValidationReport
+from validators import TabularValidator, ImageValidator, JsonValidator, BaseValidator
+from structures import ValidationReport, ValidationResult
+
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+
+class ArchiveHandler:
+    """
+    Handles extraction and cleanup of archive files in a directory.
+    """
+
+    def __init__(self, source_dir: str):
+        self.source_dir = Path(source_dir)
+
+    def unzip_all(self) -> List[str]:
+        """
+        Extracts all .zip files under the directory.
+
+        Returns:
+            List[str]: Absolute paths of all extracted files.
+        """
+        zip_files = glob.glob(str(self.source_dir / "**/*.zip"), recursive=True)
+        logger.info("Found %d zip file(s) in %s", len(zip_files), self.source_dir)
+
+        if not zip_files:
+            return []
+
+        extracted_files: List[str] = []
+        for zip_path in zip_files:
+            try:
+                with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                    logger.info("Extracting %s", zip_path)
+                    for member in zip_ref.infolist():
+                        if not member.is_dir():
+                            extracted_files.append(str(self.source_dir / member.filename))
+                    zip_ref.extractall(self.source_dir)
+            except zipfile.BadZipFile:
+                logger.warning("Skipping corrupt zip file: %s", zip_path)
+            except Exception as e:
+                logger.error("Failed to extract %s: %s", zip_path, e)
+
+        return extracted_files
+
+    def cleanup(self, file_paths: List[str]):
+        """
+        Deletes a list of files, typically extracted from an archive.
+        """
+        if not file_paths:
+            return
+
+        logger.info("Cleaning up %d extracted file(s)", len(file_paths))
+        for file_path in file_paths:
+            try:
+                os.remove(file_path)
+                logger.debug("Deleted %s", file_path)
+            except FileNotFoundError:
+                logger.warning("File not found for cleanup: %s", file_path)
+            except Exception as e:
+                logger.error("Failed to delete %s: %s", file_path, e)
 
 
 class DirectoryValidator:
     """
     Orchestrates the validation of an entire directory containing mixed file types.
     """
+
     def __init__(self, config: List[Dict[str, Any]], unzip_first: bool = True):
-        """
-        Initializes the orchestrator with a validation configuration.
-
-        Args:
-            config (List[Dict[str, Any]]): A list of validation tasks, typically
-                                          loaded from a YAML or JSON file.
-        """
         self.config = config
-        self.validator_registry: Dict[str, BaseValidator] = {}
         self.unzip_first = unzip_first
-        # This crucial step maps string names from the config (e.g., "tabular")
-        # to the actual validator classes.
-        self._register_validators()
+        self._validator_registry: Dict[str, Type[BaseValidator]] = {}
+        self._register_default_validators()
 
-    def _register_validators(self):
-        """
-        Initializes the validator registry. This makes the system extensible.
-        To add a new validator, you just add a line here.
-        """
-        self.validator_registry = {
+    def _register_default_validators(self):
+        """Registers built-in validators."""
+        self._validator_registry = {
             "tabular": TabularValidator,
-            "image": ImageValidator, # Example for the future
-            # "json": JsonValidator,   # Example for the future
+            "image": ImageValidator,
+            # "json": JsonValidator,  # enable when implemented
         }
-        print(f"Registered validators: {list(self.validator_registry.keys())}")
+        logger.info("Registered validators: %s", list(self._validator_registry.keys()))
+
+    def register_validator(self, name: str, validator_cls: Type[BaseValidator]):
+        """Allows external code to register new validators dynamically."""
+        if not issubclass(validator_cls, BaseValidator):
+            raise TypeError("Validator must subclass BaseValidator")
+        self._validator_registry[name] = validator_cls
+        logger.info("Registered custom validator: %s", name)
 
     def validate(self, directory_path: str) -> ValidationReport:
         """
-        Top-level validation method. Manages the unzipping pre-processing step.
+        Top-level validation method. Manages unzipping, validation, and cleanup.
         """
-        files_to_cleanup = []
+        files_to_cleanup: List[str] = []
         if self.unzip_first:
-            # Step 1: Unzip files and get a list of the files that were created.
-            files_to_cleanup = self._unzip_all(source_dir=directory_path)
-        
-        # Step 2: Run the validation process on the directory, which now contains the extracted files.
-        report = self._perform_validation_on_dir(directory_path)
-        
-        # Step 3: After validation is complete, clean up the files that were extracted.
+            archive_handler = ArchiveHandler(directory_path)
+            files_to_cleanup = archive_handler.unzip_all()
+
+        report = self._validate_directory(directory_path)
+
         if files_to_cleanup:
-            self._cleanup_files(files_to_cleanup)
+            ArchiveHandler(directory_path).cleanup(files_to_cleanup)
 
         return report
-    def _unzip_all(self, source_dir: str) -> List[str]:
-        """
-        Finds and extracts all .zip files into the same directory.
-        
-        Returns:
-            List[str]: A list of the absolute paths of all files that were extracted.
-        """
-        zip_files = glob.glob(str(Path(source_dir) / "**/*.zip"), recursive=True)
-        print(f"Zip files found for extraction: {len(zip_files)}")
-        if not zip_files:
-            print("No .zip files found to extract.")
-            return []
 
-        extracted_file_paths = []
-        for zip_path in zip_files:
-            try:
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    print(f"  - Extracting '{zip_path}'...")
-                    # Get list of members to track them for cleanup
-                    for member in zip_ref.infolist():
-                        if not member.is_dir():
-                            # Construct the full path where the file will be
-                            full_path = Path(source_dir) / member.filename
-                            extracted_file_paths.append(str(full_path))
-                    
-                    # Extract all members
-                    zip_ref.extractall(source_dir)
-            except zipfile.BadZipFile:
-                print(f"  - WARNING: Skipping corrupt or invalid zip file: '{zip_path}'")
-            except Exception as e:
-                print(f"  - WARNING: Failed to extract '{zip_path}': {e}")
-        
-        return extracted_file_paths
-    def _cleanup_files(self, file_paths: List[str]):
+    def _validate_directory(self, directory_path: str) -> ValidationReport:
         """
-        Deletes a list of files, typically the ones extracted from an archive.
+        Core validation loop over configured tasks.
         """
-        print("\n--- Cleaning up extracted files ---")
-        if not file_paths:
-            print("No files to clean up.")
-            return
-
-        for file_path in file_paths:
-            try:
-                os.remove(file_path)
-                print(f"  - Deleted: {file_path}")
-            except FileNotFoundError:
-                print(f"  - WARNING: Could not delete '{file_path}', as it was not found.")
-            except Exception as e:
-                print(f"  - ERROR: Failed to delete '{file_path}': {e}")
-        print("--- Cleanup complete ---")
-
-
-    def _perform_validation_on_dir(self, directory_to_validate: str) -> ValidationReport:
-        """
-        Contains the core validation loop that runs on a specified directory.
-        (This is the refactored logic from the original `validate` method).
-        """
-
-        report = ValidationReport(directory_path=directory_to_validate)
-        print(f"Starting validation in directory: {directory_to_validate}")
+        report = ValidationReport(directory_path=directory_path)
+        logger.info("Starting validation in directory: %s", directory_path)
 
         for task in self.config:
             path_pattern = task.get("path_pattern")
@@ -133,43 +125,30 @@ class DirectoryValidator:
             task_name = task.get("name", "Unnamed Task")
 
             if not path_pattern or not validator_name:
-                print(f"Skipping invalid task configuration: {task}")
+                logger.warning("Skipping invalid task config: %s", task)
                 continue
 
-            validator_class = self.validator_registry.get(validator_name)
-            if not validator_class:
-                print(f"Unknown validator '{validator_name}' in task '{task_name}'. Skipping...")
+            validator_cls = self._validator_registry.get(validator_name)
+            if not validator_cls:
+                logger.warning("Unknown validator '%s' in task '%s'. Skipping.", validator_name, task_name)
                 continue
 
-            # print(f"\n--- Running Task: {task_name} ---")
-            # print(f"Using validator: {validator_name}")
-            # print(f"Path pattern: {path_pattern}")
-
-            # Resolve the full glob pattern
-            full_pattern = str(Path(directory_to_validate) / path_pattern)
+            # Resolve file matches
+            full_pattern = str(Path(directory_path) / path_pattern)
             matched_files = glob.glob(full_pattern, recursive=True)
-
             if not matched_files:
-                print(f"No files matched the pattern '{path_pattern}' in '{directory_to_validate}'.")
+                logger.info("No files matched pattern '%s' in '%s'", path_pattern, directory_path)
                 continue
 
-            # print(f"Found {len(matched_files)} files to validate.")
-
-            # Initialize the validator instance with the specified rules
-            validator_instance = validator_class(rules=rules)
-
+            validator = validator_cls(rules=rules)
             for file_path in matched_files:
-                # print(f"Validating file: {file_path}")
                 try:
-                    result = validator_instance.validate(file_path)
+                    result: ValidationResult = validator.validate(file_path)
                     report.add_result(result)
                 except Exception as e:
-                    print(f"  - ERROR: Validation failed for '{file_path}': {e}")
+                    logger.error("Validation failed for %s: %s", file_path, e)
 
-
-        
         return report
 
     def __call__(self, directory_path: str) -> ValidationReport:
-        """Makes the instance callable as a shortcut for the `validate` method."""
         return self.validate(directory_path)
