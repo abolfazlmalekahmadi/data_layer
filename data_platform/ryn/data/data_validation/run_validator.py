@@ -82,21 +82,21 @@ def setup_test_directory(root_dir: Path):
     pd.DataFrame(transaction_data).to_parquet(transactions_path / "transactions.parquet")
     print(f"Created: {transactions_path / 'transactions.parquet'}")
 
-    # valid_image_path = images_path / "product_good.jpg"
-    # good_image_data = np.zeros((10, 10, 3), dtype=np.uint8) # Start with black
-    # good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
-    # cv2.imwrite(str(valid_image_path), good_image_data)
-    # print(f"Created: {valid_image_path}")
+    valid_image_path = images_path / "product_good.jpg"
+    good_image_data = np.zeros((512, 512, 3), dtype=np.uint8) # Start with black
+    good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
+    cv2.imwrite(str(valid_image_path), good_image_data)
+    print(f"Created: {valid_image_path}")
 
     # # 2. A completely BLACK image (should fail)
     black_image_path = images_path / "product_black.jpg"
-    black_image_data = np.zeros((10, 10, 3), dtype=np.uint8)
+    black_image_data = np.zeros((512, 512, 3), dtype=np.uint8)
     cv2.imwrite(str(black_image_path), black_image_data)
     print(f"Created: {black_image_path}")
     
     # 3. A completely WHITE image (should fail)
     white_image_path = images_path / "product_white.jpg"
-    white_image_data = np.ones((10, 10, 3), dtype=np.uint8) * 255
+    white_image_data = np.ones((512,512 , 3), dtype=np.uint8) * 255
     cv2.imwrite(str(white_image_path), white_image_data)
     print(f"Created: {white_image_path}")
 
