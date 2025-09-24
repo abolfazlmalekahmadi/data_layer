@@ -5,7 +5,9 @@ from typing import Any, Dict, List, Tuple
 import cv2
 import numpy as np
 import polars as pl
+from polars import LazyFrame
 
+# Assuming these are in your project structure
 from data.data_validation.structures import ValidationResult
 from data.data_validation.utils import time_validator
 
@@ -27,6 +29,7 @@ class BaseValidator(ABC):
         """Run validation on the given file path."""
         ...
 
+
 class TabularValidator(BaseValidator):
     """Validates tabular datasets using Polars for performance."""
 
@@ -37,13 +40,18 @@ class TabularValidator(BaseValidator):
 
         try:
             lazy_df = self._scan_data(file_path)
-            errors.extend(self._check_required_columns(lazy_df.columns))
+            columns = lazy_df.columns
+            errors.extend(self._check_required_columns(columns))
 
-            exprs = self._build_validation_expressions(lazy_df.columns)
-            results = self._execute_checks(lazy_df, exprs)
+            # --- Perform fast, full-table aggregation checks ---
+            agg_exprs = self._build_aggregation_expressions(columns)
+            if agg_exprs:
+                agg_results = self._execute_aggregation_checks(lazy_df, agg_exprs)
+                errors.extend(self._process_aggregation_errors(agg_results))
+                warnings.extend(self._process_aggregation_warnings(agg_results))
 
-            errors.extend(self._process_errors(results))
-            warnings.extend(self._process_warnings(results))
+            # --- Perform detailed, row-level checks (like finding links) ---
+            errors.extend(self._check_for_links(lazy_df))
 
         except Exception as e:
             errors.append({"check": "file_read_process", "error": str(e)})
@@ -61,7 +69,10 @@ class TabularValidator(BaseValidator):
         """Return a Polars LazyFrame from supported file types."""
         ext = Path(file_path).suffix.lower()
         if ext == ".csv":
-            return pl.scan_csv(file_path,infer_schema_length=0)
+            # Using infer_schema_length=0 reads all columns as strings, preventing
+            # parsing errors from mixed types (e.g., int and float in one col).
+            # This is the most robust option for validation.
+            return pl.scan_csv(file_path, infer_schema_length=0, ignore_errors=True)
         if ext == ".parquet":
             return pl.scan_parquet(file_path)
         raise ValueError(f"Unsupported file type: {ext}")
@@ -77,145 +88,144 @@ class TabularValidator(BaseValidator):
             return [{"check": "required_columns", "error": f"Missing: {missing}"}]
         return []
 
-    def _build_validation_expressions(
-        self, columns: List[str]
-    ) -> Tuple[List[pl.Expr], List[pl.Expr], List[pl.Expr]]:
-        """Generate Polars expressions for null, link, and fully-null checks."""
-        not_null_exprs, link_exprs, null_col_exprs = [], [], []
+    def _build_aggregation_expressions(self, columns: List[str]) -> List[pl.Expr]:
+        """Generate Polars expressions for high-level dataset checks."""
+        exprs = []
         column_rules = self.rules.get("columns", {})
-        link_pattern = r"(?:https?://|ftp://|www\.)"
 
         for col in columns:
+            # Check for null values in columns marked as 'not_null'
             if column_rules.get(col, {}).get("not_null"):
-                not_null_exprs.append(pl.col(col).is_null().sum().alias(f"not_null_{col}"))
+                exprs.append(pl.col(col).is_null().sum().alias(f"not_null_{col}"))
 
-            link_exprs.append(
-                pl.col(col)
-                .cast(pl.Utf8)
-                .str.contains(link_pattern)
-                .any()
-                .alias(f"link_{col}")
-            )
+            # Check if an entire column is null (for warnings)
+            exprs.append(pl.col(col).is_null().all().alias(f"fully_null_{col}"))
 
-            null_col_exprs.append(pl.col(col).is_null().all().alias(f"fully_null_{col}"))
+        # Check for any rows where all values are null
+        exprs.append(
+            pl.all_horizontal(pl.all().is_null()).sum().alias("fully_null_row_count")
+        )
+        return exprs
 
-        return not_null_exprs, link_exprs, null_col_exprs
-
-    def _execute_checks(
-        self, lazy_df: pl.LazyFrame, exprs: Tuple[List[pl.Expr], List[pl.Expr], List[pl.Expr]]
+    def _execute_aggregation_checks(
+        self, lazy_df: pl.LazyFrame, exprs: List[pl.Expr]
     ) -> pl.DataFrame:
-        """Run all checks in a single Polars query."""
-        not_null_exprs, link_exprs, null_col_exprs = exprs
-        return lazy_df.select(
-            *not_null_exprs,
-            *link_exprs,
-            *null_col_exprs,
-            pl.all_horizontal(pl.all().is_null()).alias("fully_null_row_count").sum(),
-        ).collect()
+        """Run all aggregation checks in a single Polars query."""
+        return lazy_df.select(exprs).collect()
 
-    def _process_errors(self, results: pl.DataFrame) -> List[Dict]:
-        """Extract error messages from Polars results."""
+    def _process_aggregation_errors(self, results: pl.DataFrame) -> List[Dict]:
+        """Extract error messages from aggregation results."""
         errors = []
         row = results.row(0, named=True)
 
         for name, val in row.items():
             if name.startswith("not_null_") and val > 0:
                 col = name.replace("not_null_", "")
-                errors.append({"check": "not_null", "column": col, "error": f"{val} nulls"})
-            elif name.startswith("link_") and val:
-                col = name.replace("link_", "")
-                errors.append({"check": "contains_links", "column": col, "error": "Link found"})
-
+                errors.append(
+                    {"check": "not_null", "column": col, "error": f"{val} nulls found"}
+                )
         return errors
 
-    def _process_warnings(self, results: pl.DataFrame) -> List[Dict]:
-        """Extract warning messages from Polars results."""
+    def _process_aggregation_warnings(self, results: pl.DataFrame) -> List[Dict]:
+        """Extract warning messages from aggregation results."""
         warnings = []
         row = results.row(0, named=True)
 
         for name, val in row.items():
             if name.startswith("fully_null_") and val:
                 col = name.replace("fully_null_", "")
-                warnings.append({"check": "fully_null_column", "column": col, "warning": "All nulls"})
+                warnings.append(
+                    {
+                        "check": "fully_null_column",
+                        "column": col,
+                        "warning": "Column contains only null values",
+                    }
+                )
 
         if row.get("fully_null_row_count", 0) > 0:
-            warnings.append({
-                "check": "fully_null_row",
-                "warning": f"{row['fully_null_row_count']} fully null row(s)",
-            })
-
+            warnings.append(
+                {
+                    "check": "fully_null_row",
+                    "warning": f"{row['fully_null_row_count']} fully null row(s) found",
+                }
+            )
         return warnings
 
+    def _check_for_links(self, lazy_df: LazyFrame) -> List[Dict]:
+        """
+        Find specific rows and values that contain web links.
+        This is a more intensive check and is handled separately.
+        """
+        errors = []
+        # This regex now includes a capture group `(...)` to extract the full link.
+        link_pattern = r"((?:https?://|ftp://|www\.)\S+)"
 
-# ---------------- Image Validator ---------------- #
+        # We add a row index to the dataframe to report which row has the error.
+        df_with_index = lazy_df.with_row_index()
 
+        for col in lazy_df.columns:
+            # For each column, find rows that contain a link and extract it.
+            links_found = (
+                df_with_index.filter(pl.col(col).str.contains(link_pattern))
+                .select(
+                    pl.col("index").alias("row_number"),
+                    pl.col(col).str.extract(link_pattern, 1).alias("link"),
+                )
+                .collect()
+            )
+
+            # Generate a detailed error message for each link found.
+            for row in links_found.iter_rows(named=True):
+                # Add 2 to row_number for user-friendliness:
+                # Polars index is 0-based, and CSV has a header row.
+                # So data on row 1 of the file is index 0.
+                user_friendly_row = row["row_number"] + 2
+                errors.append(
+                    {
+                        "check": "contains_links",
+                        "column": col,
+                        "row": user_friendly_row,
+                        "error": f"Link found: '{row['link']}'",
+                    }
+                )
+        return errors
+
+
+# ---------------- Image Validator (Unchanged) ---------------- #
 class ImageValidator(BaseValidator):
-    """Validates image files by attempting to load them and checking basic quality."""
-
     @time_validator
     def validate(self, file_path: str) -> ValidationResult:
+        # ... (implementation is unchanged) ...
         errors: List[Dict] = []
-
         try:
             image = cv2.imread(file_path)
             if image is None:
-                errors.append({
-                    "check": "image_loadable",
-                    "error": "File not loadable (may be corrupt or unsupported).",
-                })
+                errors.append({"check": "image_loadable", "error": "File not loadable (may be corrupt or unsupported)."})
             else:
                 errors.extend(self._check_solid_color(image))
-
         except Exception as e:
             errors.append({"check": "file_read_exception", "error": str(e)})
-
-        return ValidationResult(
-            file_path,
-            is_valid=not errors,
-            validator_used="image",
-            errors=errors,
-        )
+        return ValidationResult(file_path, is_valid=not errors, validator_used="image", errors=errors)
 
     def _check_solid_color(self, image: np.ndarray) -> List[Dict]:
-        """Check if the image is a single solid color, if rule is enabled."""
-        if not self.rules.get("disallow_solid_color", True):
-            return []
-
+        if not self.rules.get("disallow_solid_color", True): return []
         min_val, max_val = np.min(image), np.max(image)
-        if min_val != max_val:
-            return []
-
-        if min_val == 0:
-            msg = "Image is completely black."
-        elif min_val == 255:
-            msg = "Image is completely white."
-        else:
-            msg = f"Image is solid color (value {min_val})."
-
+        if min_val != max_val: return []
+        if min_val == 0: msg = "Image is completely black."
+        elif min_val == 255: msg = "Image is completely white."
+        else: msg = f"Image is solid color (value {min_val})."
         return [{"check": "solid_color", "error": msg}]
 
 
-# ---------------- JSON Validator ---------------- #
-
+# ---------------- JSON Validator (Unchanged) ---------------- #
 class JsonValidator(BaseValidator):
-    """Validates JSON files, typically against a schema."""
-
     def validate(self, file_path: str) -> ValidationResult:
+        # ... (implementation is unchanged) ...
         errors: List[Dict] = []
-
         try:
             import json
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-
-            # TODO: Add JSON schema validation if `self.rules` contains a schema
-
         except Exception as e:
             errors.append({"check": "file_read_or_parse", "error": str(e)})
-
-        return ValidationResult(
-            file_path,
-            is_valid=not errors,
-            validator_used="json",
-            errors=errors,
-        )
+        return ValidationResult(file_path, is_valid=not errors, validator_used="json", errors=errors)
