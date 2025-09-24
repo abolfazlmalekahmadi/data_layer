@@ -111,6 +111,9 @@ class ClearMLTaskManager:
                     "kagglehub",
                     "python-dotenv",
                     "aipmodel==0.2.28",
+                    "opencv-python",
+                    "opencv-python-headless",
+                    "polars"
                 ],
                 docker=None,
             )
