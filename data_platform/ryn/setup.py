@@ -12,9 +12,9 @@ setup(
         "openml",
         "kagglehub",
         "fastapi",
-        "opencv-python",
-        "opencv-python-headless",
-        "polars"
+        "opencv-python", #added
+        "opencv-python-headless", #added
+        "polars" #added
     ],
     python_requires=">=3.8",
     description="SDK for data ingestion and platform utilities.",
