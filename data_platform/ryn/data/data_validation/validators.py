@@ -166,19 +166,26 @@ class TabularValidator(BaseValidator):
 
         # Iterate through only the STRING columns
         for col_name, col_type in df_schema.items():
-            if col_type == pl.Utf8:
-                # This is a string column, so we can safely check it for links.
+            # Check if the column is a text-like type (Utf8 or Categorical)
+            if col_type in (pl.Utf8, pl.Categorical):
+                # This is a text-like column. We cast to Utf8 to ensure
+                # .str functions are available, then run the check.
                 links_found = (
-                    df_with_index.filter(pl.col(col_name).str.contains(link_pattern))
+                    df_with_index.filter(
+                        pl.col(col_name).cast(pl.Utf8).str.contains(link_pattern)
+                    )
                     .select(
                         pl.col("index").alias("row_number"),
-                        pl.col(col_name).str.extract(link_pattern, 1).alias("link"),
+                        pl.col(col_name)
+                        .cast(pl.Utf8)
+                        .str.extract(link_pattern, 1)
+                        .alias("link"),
                     )
                     .collect()
                 )
 
                 for row in links_found.iter_rows(named=True):
-                    user_friendly_row = row["row_number"] + 2 # For header + 0-based index
+                    user_friendly_row = row["row_number"] + 2  # For header + 0-based index
                     errors.append(
                         {
                             "check": "contains_links",
