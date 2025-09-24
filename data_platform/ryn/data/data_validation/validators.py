@@ -61,7 +61,7 @@ class TabularValidator(BaseValidator):
         """Return a Polars LazyFrame from supported file types."""
         ext = Path(file_path).suffix.lower()
         if ext == ".csv":
-            return pl.scan_csv(file_path)
+            return pl.scan_csv(file_path,infer_schema_length=0)
         if ext == ".parquet":
             return pl.scan_parquet(file_path)
         raise ValueError(f"Unsupported file type: {ext}")
