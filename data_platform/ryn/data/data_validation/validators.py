@@ -151,43 +151,42 @@ class TabularValidator(BaseValidator):
             )
         return warnings
 
+     # --- MODIFIED METHOD ---
     def _check_for_links(self, lazy_df: LazyFrame) -> List[Dict]:
         """
         Find specific rows and values that contain web links.
-        This is a more intensive check and is handled separately.
+        This check is now only applied to columns with a string data type.
         """
         errors = []
-        # This regex now includes a capture group `(...)` to extract the full link.
         link_pattern = r"((?:https?://|ftp://|www\.)\S+)"
-
-        # We add a row index to the dataframe to report which row has the error.
         df_with_index = lazy_df.with_row_index()
+        
+        # Get the schema to check column types
+        df_schema = lazy_df.schema
 
-        for col in lazy_df.columns:
-            # For each column, find rows that contain a link and extract it.
-            links_found = (
-                df_with_index.filter(pl.col(col).str.contains(link_pattern))
-                .select(
-                    pl.col("index").alias("row_number"),
-                    pl.col(col).str.extract(link_pattern, 1).alias("link"),
+        # Iterate through only the STRING columns
+        for col_name, col_type in df_schema.items():
+            if col_type == pl.Utf8:
+                # This is a string column, so we can safely check it for links.
+                links_found = (
+                    df_with_index.filter(pl.col(col_name).str.contains(link_pattern))
+                    .select(
+                        pl.col("index").alias("row_number"),
+                        pl.col(col_name).str.extract(link_pattern, 1).alias("link"),
+                    )
+                    .collect()
                 )
-                .collect()
-            )
 
-            # Generate a detailed error message for each link found.
-            for row in links_found.iter_rows(named=True):
-                # Add 2 to row_number for user-friendliness:
-                # Polars index is 0-based, and CSV has a header row.
-                # So data on row 1 of the file is index 0.
-                user_friendly_row = row["row_number"] + 2
-                errors.append(
-                    {
-                        "check": "contains_links",
-                        "column": col,
-                        "row": user_friendly_row,
-                        "error": f"Link found: '{row['link']}'",
-                    }
-                )
+                for row in links_found.iter_rows(named=True):
+                    user_friendly_row = row["row_number"] + 2 # For header + 0-based index
+                    errors.append(
+                        {
+                            "check": "contains_links",
+                            "column": col_name,
+                            "row": user_friendly_row,
+                            "error": f"Link found: '{row['link']}'",
+                        }
+                    )
         return errors
 
 
