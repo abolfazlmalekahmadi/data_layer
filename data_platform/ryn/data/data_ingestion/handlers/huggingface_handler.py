@@ -153,7 +153,7 @@ class HuggingFaceHandler:
 
             files = [
                     f.name for f in local_dataset_dir.iterdir()
-                    if f.is_file() and f.suffix in (".csv", ".parquet", ".jpg", ".png", ".json")
+                    if f.is_file()
                 ] if local_dataset_dir.is_dir() else []
             logger.info(f"{files}, {local_dataset_dir.is_dir()}")
             if not files:
