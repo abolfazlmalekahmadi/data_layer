@@ -170,12 +170,14 @@ class S3Handler:
 
                 # NEW: Remove the invalid files from the temporary directory
                 logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
+                logger.info(f"errors: {error_details}")
                 for file_path in invalid_file_paths:
                     try:
                         os.remove(file_path)
                         logger.debug(f"Removed invalid file: {file_path}")
                     except OSError as e:
                         logger.error(f"Error removing invalid file {file_path}: {e}")
+                
 
 
             # check if all files are not valid 
