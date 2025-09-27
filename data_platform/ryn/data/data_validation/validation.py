@@ -134,11 +134,30 @@ class DirectoryValidator:
         self._validator_registry[name] = validator_cls
         logger.info("Registered custom validator: %s", name)
 
-    def validate(self, directory_path: str) -> ValidationReport:
+    def validate(self, directory_path: Path) -> ValidationReport:
         """
         Top-level validation method. Manages unzipping, validation, and cleanup.
         """
         # CHANGE: Renamed variable for clarity. It now holds archive paths.
+        if directory_path.is_file():
+            if directory_path.suffix in ['.zip', '.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2']:
+                # If a single archive file is provided, extract it to a temp directory
+                temp_dir = directory_path.parent / f"{directory_path.stem}_extracted"
+                temp_dir.mkdir(exist_ok=True)
+                logger.info("Single archive file detected. Extracting to temporary directory: %s", temp_dir)
+                directory_path = temp_dir
+            elif directory_path.suffix in ['.csv', '.parquet']:
+                # If a single data file is provided, validate it directly
+                logger.info("Single data file detected. Validating file: %s", directory_path)
+                # Assuming tabular validator for single data files; could be enhanced to detect type
+                return self._validate_single_file(str(directory_path), "tabular", {})
+            elif directory_path.suffix in ['.jpg', '.jpeg', '.png']:
+                logger.info("Single image file detected. Validating file: %s", directory_path)
+                return self._validate_single_file(str(directory_path), "image", {})
+            elif directory_path.suffix in ['.json']:
+                logger.info("Single JSON file detected. Validating file: %s", directory_path)
+                return self._validate_single_file(str(directory_path), "json", {})
+            
         archives_to_cleanup: List[str] = []
         if self.unzip_first:
             archive_handler = ArchiveHandler(directory_path)
@@ -186,6 +205,13 @@ class DirectoryValidator:
                     logger.error("Validation failed for %s: %s", file_path, e)
 
         return report
-    
+    def _validate_single_file(self, file_path: str, validator_name: str, rules: Dict[str, Any]) -> ValidationResult: 
+        validator_cls = self._validator_registry.get(validator_name)
+        if not validator_cls:
+            raise ValueError(f"Unknown validator: {validator_name}")
+
+        validator = validator_cls(rules=rules)
+        return validator.validate(file_path)
+      
     def __call__(self, directory_path: str) -> ValidationReport:
         return self.validate(directory_path)

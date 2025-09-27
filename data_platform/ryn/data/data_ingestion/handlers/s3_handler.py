@@ -141,9 +141,17 @@ class S3Handler:
 
             
             logger.info(f"Starting validation for dataset at: {local_file}")
+
+            if local_file.is_file():
+                logger.info(f"Single file detected: {local_file}")
+                
+
+
+
+
             # Ensure the validator is configured to unzip archives, which is the default
             validator = DirectoryValidator(config=self.config, unzip_first=True)
-            report = validator.validate(str(local_file))
+            report = validator.validate(Path(local_file))
             logger.info(f"Validation report: {report}")
 
             error_details = []
