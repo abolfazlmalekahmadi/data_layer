@@ -152,6 +152,8 @@ class S3Handler:
             # Ensure the validator is configured to unzip archives, which is the default
             validator = DirectoryValidator(config=self.config, unzip_first=True)
             report = validator.validate(Path(local_file))
+
+            #check if local_file is a file and convert to ValidationReport
             if isinstance(report,ValidationResult):
                 report = ValidationReport(directory_path=str(local_file), results=[report])
 
@@ -179,7 +181,7 @@ class S3Handler:
                         })
                         invalid_file_paths.add(result.file_path)
 
-                # NEW: Remove the invalid files from the temporary directory
+                #Remove the invalid files from the temporary directory
                 logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
                 logger.info(f"errors: {error_details}")
                 for file_path in invalid_file_paths:
@@ -214,7 +216,7 @@ class S3Handler:
                 clearml_config=clearml_config,
             )
             
-            # --- MODIFIED: Construct final response ---
+            #Construct final response ---
             response = {
                 "status": final_status,
                 "message": final_message,
