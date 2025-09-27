@@ -2,6 +2,7 @@ import gc
 import logging
 import os  # NEW: Import the os module for file deletion
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import HTTPException
 from huggingface_hub import HfApi, snapshot_download
@@ -114,7 +115,7 @@ class HuggingFaceHandler:
             # --- Step 3: Validate downloaded files ---
             logger.info(f"Validating downloaded files in: {local_dataset_dir}")
             validator = DirectoryValidator(self.config)
-            report = validator.validate(str(local_dataset_dir))
+            report = validator.validate(Path(local_dataset_dir))
             logger.info(f"Validation report: {report}")
             
             # --- MODIFIED: Handle failures without stopping ---
