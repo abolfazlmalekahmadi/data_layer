@@ -154,7 +154,7 @@ class HuggingFaceHandler:
             files = [f for f in os.listdir(local_dataset_dir) 
                      if os.path.isfile(os.path.join(local_dataset_dir, f)) and
                       f.endswith(('.csv', '.parquet', '.jpg', '.png','.json'))
-                      ] if local_dataset_dir.is_dir() 
+                      ] if local_dataset_dir.is_dir() else []
             if not files:
                 final_status = "failed"
                 final_message = "All files in the dataset failed validation. No files were stored."
