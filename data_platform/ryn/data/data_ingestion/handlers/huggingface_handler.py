@@ -1,6 +1,6 @@
-# data/data_ingestion/handlers/huggingface_handler.py
 import gc
 import logging
+import os  # NEW: Import the os module for file deletion
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class HuggingFaceHandler:
     config = [
+        # ... (config remains the same)
         {
             "name": "Validate User CSVs",
             "path_pattern": "**/*.csv",
@@ -49,13 +50,15 @@ class HuggingFaceHandler:
         revision: str = "main",
     ) -> dict:
         """
-        Download a Hugging Face dataset, persist it to PVC, and optionally upload to S3.
+        Download a Hugging Face dataset, validate files, persist only the valid files
+        to PVC/S3, and report any validation failures.
         """
         storage_handler = None
         try:
             mount_dataset_name = dataset_name.replace("/", "-")
             storage_handler = DatasetStorageHandler(mount_dataset_name)
 
+            # ... (Steps 1 and 2: Size check and download remain the same) ...
             try:
                 DatasetConditionChecker().check_huggingface_size(
                     dataset_name, revision=revision
@@ -69,14 +72,11 @@ class HuggingFaceHandler:
                 )
 
             api = HfApi()
-            # Fetch repo info to get metadata like the exact commit SHA for the given revision
             info = api.repo_info(dataset_name, repo_type="dataset", revision=revision)
 
-            # --- Step 2: Download raw files using snapshot_download ---
             temp_dir = storage_handler.temp_dir
             logger.info(f"Using PVC-backed temp directory: {temp_dir}")
 
-            # This directory will contain the downloaded files, mirroring the HF repo structure
             local_dataset_dir = temp_dir / "huggingface_dataset_files"
             local_dataset_dir.mkdir(parents=True, exist_ok=True)
 
@@ -90,8 +90,6 @@ class HuggingFaceHandler:
                 revision=revision,
                 cache_dir=str(temp_dir / "cache"),
                 local_dir=str(local_dataset_dir),
-                # CRITICAL: Use False to ensure files are copied, not symlinked.
-                # This is necessary so we can move the directory to permanent storage later.
                 local_dir_use_symlinks=False,
             )
 
@@ -118,42 +116,60 @@ class HuggingFaceHandler:
             validator = DirectoryValidator(self.config)
             report = validator.validate(str(local_dataset_dir))
             logger.info(f"Validation report: {report}")
+            
+            # --- MODIFIED: Handle failures without stopping ---
+            error_details = []
+            final_status = "success"
+            final_message = f"Hugging Face dataset '{dataset_name}' stored successfully."
+
             if report.has_failures():
-                error_details = [
-                    {
-                        "file": result.file_path,
-                        "errors": result.errors,
-                        "warnings": result.warnings,
-                    }
-                    for result in report.results
-                    if not result.is_valid
-                ]
-                logger.error(
-                    f"Validation failed for some files in dataset '{dataset_name}'."
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "message": "Validation failed for some files.",
-                        "errors": error_details,
-                    },
+                final_status = "completed_with_errors"
+                final_message = "Dataset stored, but some files failed validation and were excluded."
+                logger.warning(
+                    f"Validation failed for some files in dataset '{dataset_name}'. "
+                    "These files will be excluded from the final stored dataset."
                 )
 
-            # move dataset to PVC permanent place and upload to s3 if s3_config provided
+                invalid_file_paths = set()
+                for result in report.results:
+                    if not result.is_valid:
+                        error_details.append({
+                            "file": result.file_path,
+                            "errors": result.errors,
+                            "warnings": result.warnings,
+                        })
+                        invalid_file_paths.add(result.file_path)
+                
+                # NEW: Remove the invalid files from the temporary directory
+                logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
+                for file_path in invalid_file_paths:
+                    try:
+                        os.remove(file_path)
+                        logger.debug(f"Removed invalid file: {file_path}")
+                    except OSError as e:
+                        logger.error(f"Error removing invalid file {file_path}: {e}")
+
+            # --- Step 4: Store the (now cleaned) dataset ---
+            # This step now runs regardless of validation failures, but on a potentially modified directory.
             stored_path = storage_handler.store_dataset(
                 local_dataset_dir,
                 metadata,
                 s3_config=s3_config,
                 clearml_config=clearml_config,
             )
-            # register witth clearml
-            # storage_handler.register_with_clearml(metadata, stored_path)
-            return {
-                "status": "success",
-                "message": f"Hugging Face dataset '{dataset_name}' stored.",
+
+            # --- MODIFIED: Construct final response ---
+            response = {
+                "status": final_status,
+                "message": final_message,
                 "dataset_id": ds_id,
                 "stored_path": stored_path,
             }
+            if error_details:
+                response["validation_errors"] = error_details
+
+            return response
+            
         except HTTPException:
             raise
         except Exception as e:
@@ -166,20 +182,6 @@ class HuggingFaceHandler:
             )
         finally:
             # --- Step 5: Cleanup ---
-            # No 'ds' object to clean up, just the temp directory
             gc.collect()
             if storage_handler:
                 storage_handler.cleanup_temp()
-
-
-def process_huggingface_dataset(
-    dataset_name, dataset_config, user_name, private, dataset_tag, s3_config=None
-):
-    return HuggingFaceHandler().process(
-        dataset_name=dataset_name,
-        dataset_config=dataset_config,
-        user_name=user_name,
-        private=private,
-        dataset_tag=dataset_tag,
-        s3_config=s3_config,
-    )
