@@ -11,7 +11,7 @@ from data.data_ingestion.handlers.utils import summarize_dataset
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
 from data.data_validation.validation import DirectoryValidator
-
+from data.data_validation.structures import ValidationResult, ValidationReport    
 logger = logging.getLogger(__name__)
 
 
@@ -152,6 +152,9 @@ class S3Handler:
             # Ensure the validator is configured to unzip archives, which is the default
             validator = DirectoryValidator(config=self.config, unzip_first=True)
             report = validator.validate(Path(local_file))
+            if isinstance(report,ValidationResult):
+                report = ValidationReport(directory_path=str(local_file), results=[report])
+                    
             logger.info(f"Validation report: {report}")
 
             error_details = []
