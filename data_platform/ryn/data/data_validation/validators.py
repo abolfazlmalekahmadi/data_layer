@@ -69,8 +69,6 @@ class TabularValidator(BaseValidator):
         """Return a Polars LazyFrame from supported file types."""
         ext = Path(file_path).suffix.lower()
         if ext == ".csv":
-            # Using infer_schema_length=0 reads all columns as strings, preventing
-            # parsing errors from mixed types (e.g., int and float in one col).
             # This is the most robust option for validation.
             return pl.scan_csv(file_path, infer_schema_length=0, ignore_errors=True)
         if ext == ".parquet":
@@ -201,7 +199,7 @@ class TabularValidator(BaseValidator):
 class ImageValidator(BaseValidator):
     @time_validator
     def validate(self, file_path: str) -> ValidationResult:
-        # ... (implementation is unchanged) ...
+        
         errors: List[Dict] = []
         try:
             image = cv2.imread(file_path)
@@ -226,7 +224,6 @@ class ImageValidator(BaseValidator):
 # ---------------- JSON Validator (Unchanged) ---------------- #
 class JsonValidator(BaseValidator):
     def validate(self, file_path: str) -> ValidationResult:
-        # ... (implementation is unchanged) ...
         errors: List[Dict] = []
         try:
             import json
