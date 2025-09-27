@@ -192,7 +192,10 @@ class S3Handler:
 
 
             # check if all files are not valid 
-            files = [f for f in os.listdir(local_file) if os.path.isfile(os.path.join(local_file, f))] if local_file.is_dir() else [local_file]
+            files = [f for f in os.listdir(local_file) 
+                     if os.path.isfile(os.path.join(local_file, f)) and
+                      f.endswith(('.csv', '.parquet', '.jpg', '.png','.json'))
+                      ] if local_file.is_dir() else [local_file]
             if not files:
                 final_status = "failed"
                 final_message = "All files in the dataset failed validation. No files were stored."

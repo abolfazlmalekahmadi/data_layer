@@ -151,7 +151,10 @@ class HuggingFaceHandler:
                     except OSError as e:
                         logger.error(f"Error removing invalid file {file_path}: {e}")
 
-            files = [f for f in os.listdir(local_dataset_dir) if os.path.isfile(os.path.join(local_dataset_dir, f))]
+            files = [f for f in os.listdir(local_dataset_dir) 
+                     if os.path.isfile(os.path.join(local_dataset_dir, f)) and
+                      f.endswith(('.csv', '.parquet', '.jpg', '.png','.json'))
+                      ] if local_dataset_dir.is_dir() 
             if not files:
                 final_status = "failed"
                 final_message = "All files in the dataset failed validation. No files were stored."
