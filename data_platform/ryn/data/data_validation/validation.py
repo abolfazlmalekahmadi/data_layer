@@ -171,7 +171,7 @@ class DirectoryValidator:
 
         return report
 
-    def _validate_directory(self, directory_path: str) -> ValidationReport:
+    def _validate_directory(self, directory_path: Path) -> ValidationReport:
         report = ValidationReport(directory_path=directory_path)
         logger.info("Starting validation in directory: %s", directory_path)
 

@@ -188,7 +188,7 @@ def main():
 
     # 4. Run the validation on the root directory
     print("\n--- Running Validation ---")
-    report = validator.validate(str(test_dir))
+    report = validator.validate(Path(test_dir))
 
     # 5. Display the results in a user-friendly format
     print("\n--- Validation Report ---")
