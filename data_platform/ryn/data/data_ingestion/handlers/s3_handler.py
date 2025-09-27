@@ -176,10 +176,19 @@ class S3Handler:
                         logger.debug(f"Removed invalid file: {file_path}")
                     except OSError as e:
                         logger.error(f"Error removing invalid file {file_path}: {e}")
+
+
+            if len(os.listdir(temp_dir)) == 0:
+                final_status = "failed"
+                final_message = "All files in the dataset failed validation. No files were stored."
+                logger.error(
+                    f"All files in dataset from S3 path '{s3_file_path}' failed validation. Nothing to store."
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="All files in the dataset failed validation. No files were stored.",
+                )
             
-            # --- CORRECTED & MODIFIED: Store the (now cleaned) dataset directory ---
-            # We store the entire temp_dir, which contains the extracted and validated files.
-            # The original archive has been unzipped and deleted by the DirectoryValidator.
             stored_path = storage_handler.store_dataset(
                 local_file, 
                 metadata,
