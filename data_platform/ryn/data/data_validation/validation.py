@@ -4,6 +4,7 @@ import zipfile
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Type
+import tarfile 
 
 from data.data_validation.validators import TabularValidator, ImageValidator, JsonValidator, BaseValidator
 from data.data_validation.structures import ValidationReport, ValidationResult
@@ -16,67 +17,94 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 class ArchiveHandler:
     """
     Handles extraction and cleanup of archive files in a directory.
+    Supports .zip, .tar, .tar.gz, .tgz, .tar.bz2 formats.
     """
 
     def __init__(self, source_dir: str):
         self.source_dir = Path(source_dir)
 
-    def unzip_all(self) -> List[str]:
+    def extract_all(self) -> List[str]:
         """
-        Extracts all .zip files into their respective containing directories.
-        For example, a file at 'data/subfolder/archive.zip' will be extracted
-        into 'data/subfolder/'.
+        Extracts all supported archive files (.zip, .tar, etc.) into their
+        respective containing directories. For example, a file at
+        'data/subfolder/archive.zip' will be extracted into 'data/subfolder/'.
 
         Returns:
-            List[str]: Absolute paths of all successfully processed .zip files,
-                    which can be used for cleanup.
+            List[str]: Absolute paths of all successfully processed archive files,
+                       which can be used for cleanup.
         """
-        zip_files = glob.glob(str(self.source_dir / "**/*.zip"), recursive=True)
-        logger.info("Found %d zip file(s) in %s", len(zip_files), self.source_dir)
+        # Define glob patterns for all supported archive types
+        patterns = [
+            "**/*.zip",
+            "**/*.tar",
+            "**/*.tar.gz",
+            "**/*.tgz",
+            "**/*.tar.bz2",
+            "**/*.tbz2",
+        ]
+        
+        all_archive_files = []
+        for pattern in patterns:
+            all_archive_files.extend(glob.glob(str(self.source_dir / pattern), recursive=True))
 
-        if not zip_files:
+        if not all_archive_files:
+            logger.info("No supported archive files found in %s", self.source_dir)
             return []
+            
+        logger.info("Found %d archive file(s) in %s", len(all_archive_files), self.source_dir)
 
-        processed_zips: List[str] = []
-        for zip_path_str in zip_files:
+        processed_archives: List[str] = []
+        for archive_path_str in all_archive_files:
             try:
-                zip_path = Path(zip_path_str)
-                # CHANGE: Determine the parent directory of the zip file
-                extract_destination = zip_path.parent
+                archive_path = Path(archive_path_str)
+                extract_destination = archive_path.parent
+                
+                # --- Logic to handle different archive types ---
+                if archive_path_str.endswith(".zip"):
+                    with zipfile.ZipFile(archive_path, "r") as archive_ref:
+                        logger.info("Extracting ZIP %s to %s", archive_path, extract_destination)
+                        archive_ref.extractall(extract_destination)
+                
+                # Check for any of the tar extensions
+                elif any(archive_path_str.endswith(ext) for ext in patterns if "tar" in ext or "tgz" in ext):
+                    # Use mode "r:*" to automatically handle different compressions (gz, bz2, etc.)
+                    with tarfile.open(archive_path, "r:*") as archive_ref:
+                        logger.info("Extracting TAR %s to %s", archive_path, extract_destination)
+                        archive_ref.extractall(path=extract_destination)
 
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    # CHANGE: Log the new extraction destination
-                    logger.info("Extracting %s to %s", zip_path, extract_destination)
-                    
-                    # CHANGE: Use the specific destination for extraction
-                    zip_ref.extractall(extract_destination)
-                    
-                    # Add the successfully extracted zip to the list for later cleanup
-                    processed_zips.append(zip_path_str)
+                else:
+                    # This case should ideally not be hit due to the glob patterns
+                    logger.warning("Skipping unrecognized archive format: %s", archive_path_str)
+                    continue
+
+                # If extraction was successful, add the archive to the list for cleanup
+                processed_archives.append(archive_path_str)
 
             except zipfile.BadZipFile:
-                logger.warning("Skipping corrupt zip file: %s", zip_path_str)
+                logger.warning("Skipping corrupt zip file: %s", archive_path_str)
+            except tarfile.TarError as e: # Specific error for tar files
+                logger.warning("Skipping corrupt or invalid tar file %s: %s", archive_path_str, e)
             except Exception as e:
-                logger.error("Failed to extract %s: %s. It will not be queued for cleanup.", zip_path_str, e)
+                logger.error("Failed to extract %s: %s. It will not be queued for cleanup.", archive_path_str, e)
 
-        return processed_zips
+        return processed_archives
 
-    def cleanup(self, file_paths: List[str]):
+    def cleanup(self, archive_paths: List[str]):
         """
-        Deletes a list of files, typically extracted from an archive.
+        Deletes a list of archive files, typically after they have been extracted.
         """
-        if not file_paths:
+        if not archive_paths:
             return
 
-        logger.info("Cleaning up %d extracted file(s)", len(file_paths))
-        for file_path in file_paths:
+        logger.info("Cleaning up %d source archive(s)", len(archive_paths))
+        for file_path in archive_paths:
             try:
                 os.remove(file_path)
-                logger.debug("Deleted %s", file_path)
+                logger.debug("Deleted archive %s", file_path)
             except FileNotFoundError:
-                logger.warning("File not found for cleanup: %s", file_path)
+                logger.warning("Archive not found for cleanup: %s", file_path)
             except Exception as e:
-                logger.error("Failed to delete %s: %s", file_path, e)
+                logger.error("Failed to delete archive %s: %s", file_path, e)
 
 
 class DirectoryValidator:
@@ -114,7 +142,7 @@ class DirectoryValidator:
         archives_to_cleanup: List[str] = []
         if self.unzip_first:
             archive_handler = ArchiveHandler(directory_path)
-            archives_to_cleanup = archive_handler.unzip_all()
+            archives_to_cleanup = archive_handler.extract_all()
 
         report = self._validate_directory(directory_path)
 
