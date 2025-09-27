@@ -23,10 +23,13 @@ class ArchiveHandler:
 
     def unzip_all(self) -> List[str]:
         """
-        Extracts all .zip files under the directory.
+        Extracts all .zip files into their respective containing directories.
+        For example, a file at 'data/subfolder/archive.zip' will be extracted
+        into 'data/subfolder/'.
 
         Returns:
-            List[str]: Absolute paths of all extracted files.
+            List[str]: Absolute paths of all successfully processed .zip files,
+                    which can be used for cleanup.
         """
         zip_files = glob.glob(str(self.source_dir / "**/*.zip"), recursive=True)
         logger.info("Found %d zip file(s) in %s", len(zip_files), self.source_dir)
@@ -34,21 +37,29 @@ class ArchiveHandler:
         if not zip_files:
             return []
 
-        extracted_files: List[str] = []
-        for zip_path in zip_files:
+        processed_zips: List[str] = []
+        for zip_path_str in zip_files:
             try:
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    logger.info("Extracting %s", zip_path)
-                    for member in zip_ref.infolist():
-                        if not member.is_dir():
-                            extracted_files.append(str(self.source_dir / member.filename))
-                    zip_ref.extractall(self.source_dir)
-            except zipfile.BadZipFile:
-                logger.warning("Skipping corrupt zip file: %s", zip_path)
-            except Exception as e:
-                logger.error("Failed to extract %s: %s", zip_path, e)
+                zip_path = Path(zip_path_str)
+                # CHANGE: Determine the parent directory of the zip file
+                extract_destination = zip_path.parent
 
-        return extracted_files
+                with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                    # CHANGE: Log the new extraction destination
+                    logger.info("Extracting %s to %s", zip_path, extract_destination)
+                    
+                    # CHANGE: Use the specific destination for extraction
+                    zip_ref.extractall(extract_destination)
+                    
+                    # Add the successfully extracted zip to the list for later cleanup
+                    processed_zips.append(zip_path_str)
+
+            except zipfile.BadZipFile:
+                logger.warning("Skipping corrupt zip file: %s", zip_path_str)
+            except Exception as e:
+                logger.error("Failed to extract %s: %s. It will not be queued for cleanup.", zip_path_str, e)
+
+        return processed_zips
 
     def cleanup(self, file_paths: List[str]):
         """
@@ -99,22 +110,21 @@ class DirectoryValidator:
         """
         Top-level validation method. Manages unzipping, validation, and cleanup.
         """
-        files_to_cleanup: List[str] = []
+        # CHANGE: Renamed variable for clarity. It now holds archive paths.
+        archives_to_cleanup: List[str] = []
         if self.unzip_first:
             archive_handler = ArchiveHandler(directory_path)
-            files_to_cleanup = archive_handler.unzip_all()
+            archives_to_cleanup = archive_handler.unzip_all()
 
         report = self._validate_directory(directory_path)
 
-        if files_to_cleanup:
-            ArchiveHandler(directory_path).cleanup(files_to_cleanup)
+        # CHANGE: This will now pass the list of zip file paths to the cleanup method.
+        if archives_to_cleanup:
+            ArchiveHandler(directory_path).cleanup(archives_to_cleanup)
 
         return report
 
     def _validate_directory(self, directory_path: str) -> ValidationReport:
-        """
-        Core validation loop over configured tasks.
-        """
         report = ValidationReport(directory_path=directory_path)
         logger.info("Starting validation in directory: %s", directory_path)
 
@@ -133,7 +143,6 @@ class DirectoryValidator:
                 logger.warning("Unknown validator '%s' in task '%s'. Skipping.", validator_name, task_name)
                 continue
 
-            # Resolve file matches
             full_pattern = str(Path(directory_path) / path_pattern)
             matched_files = glob.glob(full_pattern, recursive=True)
             if not matched_files:
@@ -149,6 +158,6 @@ class DirectoryValidator:
                     logger.error("Validation failed for %s: %s", file_path, e)
 
         return report
-
+    
     def __call__(self, directory_path: str) -> ValidationReport:
         return self.validate(directory_path)

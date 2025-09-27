@@ -192,6 +192,8 @@ class TabularValidator(BaseValidator):
                         "error": f"Link found: '{row['link']}'",
                     }
                 )
+                break
+            
         return errors
 
 
