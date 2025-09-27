@@ -178,7 +178,8 @@ class S3Handler:
                         logger.error(f"Error removing invalid file {file_path}: {e}")
 
 
-            if len(os.listdir(local_file)) == 0:
+            files = [f for f in os.listdir(local_file) if os.path.isfile(os.path.join(local_file, f))]
+            if not files:
                 final_status = "failed"
                 final_message = "All files in the dataset failed validation. No files were stored."
                 logger.error(
