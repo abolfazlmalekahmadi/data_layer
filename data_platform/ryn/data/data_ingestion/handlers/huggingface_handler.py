@@ -185,14 +185,14 @@ class HuggingFaceHandler:
             gc.collect()
             if storage_handler:
                 storage_handler.cleanup_temp()
-    def process_huggingface_dataset(
-    dataset_name, dataset_config, user_name, private, dataset_tag, s3_config=None
-    ):
-        return HuggingFaceHandler().process(
-            dataset_name=dataset_name,
-            dataset_config=dataset_config,
-            user_name=user_name,
-            private=private,
-            dataset_tag=dataset_tag,
-            s3_config=s3_config,
-        )
+def process_huggingface_dataset(
+dataset_name, dataset_config, user_name, private, dataset_tag, s3_config=None
+):
+    return HuggingFaceHandler().process(
+        dataset_name=dataset_name,
+        dataset_config=dataset_config,
+        user_name=user_name,
+        private=private,
+        dataset_tag=dataset_tag,
+        s3_config=s3_config,
+    )
