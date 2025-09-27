@@ -165,32 +165,33 @@ class TabularValidator(BaseValidator):
         # Iterate through only the STRING columns
         for col_name, col_type in df_schema.items():
             # Check if the column is a text-like type (Utf8 or Categorical)
-        
-            links_found = (
-                df_with_index.filter(
-                    pl.col(col_name).cast(pl.Utf8).str.contains(link_pattern)
-                )
-                .select(
-                    pl.col("index").alias("row_number"),
-                    pl.col(col_name)
-                    .cast(pl.Utf8)
-                    .str.extract(link_pattern, 1)
-                    .alias("link"),
-                )
-                .collect()
-            )
 
-            for row in links_found.iter_rows(named=True):
-                user_friendly_row = row["row_number"] + 2  # For header + 0-based index
-                errors.append(
-                    {
-                        "check": "contains_links",
-                        "column": col_name,
-                        "row": user_friendly_row,
-                        "error": f"Link found: '{row['link']}'",
-                    }
+            if col_type not in [pl.Struct,pl.List,pl.Object]:
+                links_found = (
+                    df_with_index.filter(
+                        pl.col(col_name).cast(pl.Utf8).str.contains(link_pattern)
+                    )
+                    .select(
+                        pl.col("index").alias("row_number"),
+                        pl.col(col_name)
+                        .cast(pl.Utf8)
+                        .str.extract(link_pattern, 1)
+                        .alias("link"),
+                    )
+                    .collect()
                 )
-                break
+
+                for row in links_found.iter_rows(named=True):
+                    user_friendly_row = row["row_number"] + 2  # For header + 0-based index
+                    errors.append(
+                        {
+                            "check": "contains_links",
+                            "column": col_name,
+                            "row": user_friendly_row,
+                            "error": f"Link found: '{row['link']}'",
+                        }
+                    )
+                    break
             
         return errors
 
