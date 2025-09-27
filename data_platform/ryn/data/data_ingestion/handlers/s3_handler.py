@@ -154,7 +154,7 @@ class S3Handler:
             report = validator.validate(Path(local_file))
             if isinstance(report,ValidationResult):
                 report = ValidationReport(directory_path=str(local_file), results=[report])
-                    
+
             logger.info(f"Validation report: {report}")
 
             error_details = []
@@ -192,7 +192,7 @@ class S3Handler:
 
 
             # check if all files are not valid 
-            files = [f for f in os.listdir(local_file) if os.path.isfile(os.path.join(local_file, f))]
+            files = [f for f in os.listdir(local_file) if os.path.isfile(os.path.join(local_file, f))] if local_file.is_dir() else [local_file]
             if not files:
                 final_status = "failed"
                 final_message = "All files in the dataset failed validation. No files were stored."
