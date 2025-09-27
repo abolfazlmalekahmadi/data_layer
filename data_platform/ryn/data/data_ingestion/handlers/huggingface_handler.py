@@ -143,6 +143,7 @@ class HuggingFaceHandler:
                 
                 # NEW: Remove the invalid files from the temporary directory
                 logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
+                logger.info(error_details)
                 for file_path in invalid_file_paths:
                     try:
                         os.remove(file_path)
@@ -150,8 +151,18 @@ class HuggingFaceHandler:
                     except OSError as e:
                         logger.error(f"Error removing invalid file {file_path}: {e}")
 
-            # --- Step 4: Store the (now cleaned) dataset ---
-            # This step now runs regardless of validation failures, but on a potentially modified directory.
+            files = [f for f in os.listdir(local_dataset_dir) if os.path.isfile(os.path.join(local_dataset_dir, f))]
+            if not files:
+                final_status = "failed"
+                final_message = "All files in the dataset failed validation. No files were stored."
+                logger.error(
+                    f"All files in the Hugging Face dataset '{dataset_name}' failed validation."
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="All files in the dataset failed validation. No files were stored.",
+                )
+
             stored_path = storage_handler.store_dataset(
                 local_dataset_dir,
                 metadata,
