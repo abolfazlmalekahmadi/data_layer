@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from pathlib import Path
+import os
 
 import boto3
 from fastapi import HTTPException
@@ -139,48 +140,64 @@ class S3Handler:
             )
 
             
-
-
-            logger.info(f"Starting validation for dataset at: {temp_dir}")           
-            validator = DirectoryValidator(config=self.config)
-            report = validator.validate(str(temp_dir))
+            logger.info(f"Starting validation for dataset at: {local_file}")
+            # Ensure the validator is configured to unzip archives, which is the default
+            validator = DirectoryValidator(config=self.config, unzip_first=True)
+            report = validator.validate(str(local_file))
             logger.info(f"Validation report: {report}")
+
+            error_details = []
+            final_status = "success"
+            final_message = "Dataset from S3 stored successfully."
+
             if report.has_failures():
-                error_details = [
-                    {
-                        "file": result.file_path,
-                        "errors": result.errors,
-                        "warnings": result.warnings,
-                    }
-                    for result in report.results
-                    if not result.is_valid
-                ]
-                logger.error(
-                    f"Validation failed for some files in dataset '{dataset_name}'."
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "message": "Validation failed for some files.",
-                        "errors": error_details,
-                    },
+                final_status = "completed_with_errors"
+                final_message = "Dataset stored, but some files failed validation and were excluded."
+                logger.warning(
+                    f"Validation failed for some files in dataset from S3 path '{s3_file_path}'. "
+                    "These files will be excluded."
                 )
 
+                invalid_file_paths = set()
+                for result in report.results:
+                    if not result.is_valid:
+                        error_details.append({
+                            "file": result.file_path,
+                            "errors": result.errors,
+                            "warnings": result.warnings,
+                        })
+                        invalid_file_paths.add(result.file_path)
+
+                # NEW: Remove the invalid files from the temporary directory
+                logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
+                for file_path in invalid_file_paths:
+                    try:
+                        os.remove(file_path)
+                        logger.debug(f"Removed invalid file: {file_path}")
+                    except OSError as e:
+                        logger.error(f"Error removing invalid file {file_path}: {e}")
+            
+            # --- CORRECTED & MODIFIED: Store the (now cleaned) dataset directory ---
+            # We store the entire temp_dir, which contains the extracted and validated files.
+            # The original archive has been unzipped and deleted by the DirectoryValidator.
             stored_path = storage_handler.store_dataset(
-                local_file,
+                local_file, 
                 metadata,
                 s3_config=s3_config_target,
                 clearml_config=clearml_config,
             )
-
-            # stored_path = storage_handler.store_dataset(local_file, metadata)
-
-            return {
-                "status": "success",
-                "message": "Dataset from S3 stored successfully.",
+            
+            # --- MODIFIED: Construct final response ---
+            response = {
+                "status": final_status,
+                "message": final_message,
                 "dataset_id": dataset_id,
                 "stored_path": stored_path,
             }
+            if error_details:
+                response["validation_errors"] = error_details
+            
+            return response
         except HTTPException:
             raise
         except Exception as e:
