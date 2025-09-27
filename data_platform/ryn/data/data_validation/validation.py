@@ -66,7 +66,7 @@ class ArchiveHandler:
                         archive_ref.extractall(extract_destination)
                 
                 # Check for any of the tar extensions
-                elif any(archive_path_str.endswith(ext) for ext in patterns if "tar" in ext or "tgz" in ext):
+                elif archive_path_str.endswith(('.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2')):
                     # Use mode "r:*" to automatically handle different compressions (gz, bz2, etc.)
                     with tarfile.open(archive_path, "r:*") as archive_ref:
                         logger.info("Extracting TAR %s to %s", archive_path, extract_destination)
