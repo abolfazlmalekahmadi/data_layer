@@ -194,7 +194,7 @@ class DirectoryValidator:
                 )
                 return self._validate_single_file(directory_path, "json", {})
 
-        archives_to_cleanup: List[str] = []
+        archives_to_cleanup: List[Path] = []
 
         # Step 1: Unzip archives if configured to do so
         if self.unzip_first:
