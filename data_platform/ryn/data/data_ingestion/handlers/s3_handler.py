@@ -104,7 +104,7 @@ class S3Handler:
 
         # check if local_file is a file and convert to ValidationReport
         if isinstance(report, ValidationResult):
-            report = ValidationReport(directory_path=str(local_file), results=[report])
+            report = ValidationReport(directory_path=local_file, results=[report])
 
         logger.info(f"Validation report: {report}")
 

@@ -41,7 +41,7 @@ class HuggingFaceHandler:
             "name": "Validate for JSON files",
             "path_pattern": "**/*.json",
             "validator": "json",  # Assuming a JSON validator exists
-        }
+        },
     ]
 
     def _validate_and_cleanup_dataset(
@@ -71,7 +71,9 @@ class HuggingFaceHandler:
 
         if report.has_failures():
             final_status = "completed_with_errors"
-            final_message = "Dataset stored, but some files failed validation and were excluded."
+            final_message = (
+                "Dataset stored, but some files failed validation and were excluded."
+            )
             logger.warning(
                 f"Validation failed for some files in dataset '{dataset_name}'. "
                 "These files will be excluded from the final stored dataset."
@@ -198,10 +200,10 @@ class HuggingFaceHandler:
             )
 
             # Step 3: Validate and Cleanup
-            final_status, final_message, error_details = self._validate_and_cleanup_dataset(
-                local_dataset_dir, dataset_name
+            final_status, final_message, error_details = (
+                self._validate_and_cleanup_dataset(local_dataset_dir, dataset_name)
             )
-            
+
             # Step 4: Store valid files
             stored_path = storage_handler.store_dataset(
                 local_dataset_dir,
