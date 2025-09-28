@@ -58,7 +58,7 @@ def main():
             dataset_config=dataset_config if dataset_config else None,
             user_name=user_name,
             private=private,
-            revision=revision if revision else None,
+            revision=revision if revision else "main",
             s3_config=s3_config,
             clearml_config=clearml_credentials,
         )
