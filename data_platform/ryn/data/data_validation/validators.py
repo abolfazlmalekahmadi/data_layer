@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import cv2
 import numpy as np
@@ -149,7 +149,7 @@ class TabularValidator(BaseValidator):
             )
         return warnings
 
-     # --- MODIFIED METHOD ---
+    # --- MODIFIED METHOD ---
     def _check_for_links(self, lazy_df: LazyFrame) -> List[Dict]:
         """
         Find specific rows and values that contain web links.
@@ -158,7 +158,7 @@ class TabularValidator(BaseValidator):
         errors = []
         link_pattern = r"((?:https?://|ftp://|www\.)\S+)"
         df_with_index = lazy_df.with_row_index()
-        
+
         # Get the schema to check column types
         df_schema = lazy_df.schema
 
@@ -166,7 +166,7 @@ class TabularValidator(BaseValidator):
         for col_name, col_type in df_schema.items():
             # Check if the column is a text-like type (Utf8 or Categorical)
 
-            if col_type not in [pl.Struct,pl.List,pl.Object]:
+            if col_type not in [pl.Struct, pl.List, pl.Object]:
                 links_found = (
                     df_with_index.filter(
                         pl.col(col_name).cast(pl.Utf8).str.contains(link_pattern)
@@ -182,7 +182,9 @@ class TabularValidator(BaseValidator):
                 )
 
                 for row in links_found.iter_rows(named=True):
-                    user_friendly_row = row["row_number"] + 2  # For header + 0-based index
+                    user_friendly_row = (
+                        row["row_number"] + 2
+                    )  # For header + 0-based index
                     errors.append(
                         {
                             "check": "contains_links",
@@ -192,7 +194,7 @@ class TabularValidator(BaseValidator):
                         }
                     )
                     break
-            
+
         return errors
 
 
@@ -200,25 +202,36 @@ class TabularValidator(BaseValidator):
 class ImageValidator(BaseValidator):
     @time_validator
     def validate(self, file_path: Path) -> ValidationResult:
-        
         errors: List[Dict] = []
         try:
             image = cv2.imread(str(file_path))
             if image is None:
-                errors.append({"check": "image_loadable", "error": "File not loadable (may be corrupt or unsupported)."})
+                errors.append(
+                    {
+                        "check": "image_loadable",
+                        "error": "File not loadable (may be corrupt or unsupported).",
+                    }
+                )
             else:
                 errors.extend(self._check_solid_color(image))
         except Exception as e:
             errors.append({"check": "file_read_exception", "error": str(e)})
-        return ValidationResult(file_path, is_valid=not errors, validator_used="image", errors=errors)
+        return ValidationResult(
+            file_path, is_valid=not errors, validator_used="image", errors=errors
+        )
 
     def _check_solid_color(self, image: np.ndarray) -> List[Dict]:
-        if not self.rules.get("disallow_solid_color", True): return []
+        if not self.rules.get("disallow_solid_color", True):
+            return []
         min_val, max_val = np.min(image), np.max(image)
-        if min_val != max_val: return []
-        if min_val == 0: msg = "Image is completely black."
-        elif min_val == 255: msg = "Image is completely white."
-        else: msg = f"Image is solid color (value {min_val})."
+        if min_val != max_val:
+            return []
+        if min_val == 0:
+            msg = "Image is completely black."
+        elif min_val == 255:
+            msg = "Image is completely white."
+        else:
+            msg = f"Image is solid color (value {min_val})."
         return [{"check": "solid_color", "error": msg}]
 
 
@@ -228,8 +241,11 @@ class JsonValidator(BaseValidator):
         errors: List[Dict] = []
         try:
             import json
+
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
             errors.append({"check": "file_read_or_parse", "error": str(e)})
-        return ValidationResult(file_path, is_valid=not errors, validator_used="json", errors=errors)
+        return ValidationResult(
+            file_path, is_valid=not errors, validator_used="json", errors=errors
+        )
