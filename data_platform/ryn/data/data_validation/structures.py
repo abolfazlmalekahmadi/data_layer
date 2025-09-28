@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field
 from typing import Dict, Any, List
-
+from pathlib import Path
 
 
 @dataclass
 class ValidationResult:
     """Holds the outcome of validating a single file."""
-    file_path: str
+    file_path: Path
     is_valid: bool
     validator_used: str
     errors: List[Dict[str, Any]] = field(default_factory=list)
@@ -20,7 +20,7 @@ class ValidationResult:
 @dataclass
 class ValidationReport:
     """Aggregates results from all files validated in a directory run."""
-    directory_path: str
+    directory_path: Path
     results: List[ValidationResult] = field(default_factory=list)
     
     @property

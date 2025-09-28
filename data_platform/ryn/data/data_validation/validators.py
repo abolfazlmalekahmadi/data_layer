@@ -25,7 +25,7 @@ class BaseValidator(ABC):
         self.rules = rules or {}
 
     @abstractmethod
-    def validate(self, file_path: str) -> ValidationResult:
+    def validate(self, file_path: Path) -> ValidationResult:
         """Run validation on the given file path."""
         ...
 
@@ -34,7 +34,7 @@ class TabularValidator(BaseValidator):
     """Validates tabular datasets using Polars for performance."""
 
     @time_validator
-    def validate(self, file_path: str) -> ValidationResult:
+    def validate(self, file_path: Path) -> ValidationResult:
         errors: List[Dict] = []
         warnings: List[Dict] = []
 
@@ -65,7 +65,7 @@ class TabularValidator(BaseValidator):
             warnings=warnings,
         )
 
-    def _scan_data(self, file_path: str) -> pl.LazyFrame:
+    def _scan_data(self, file_path: Path) -> pl.LazyFrame:
         """Return a Polars LazyFrame from supported file types."""
         ext = Path(file_path).suffix.lower()
         if ext == ".csv":
@@ -199,11 +199,11 @@ class TabularValidator(BaseValidator):
 # ---------------- Image Validator (Unchanged) ---------------- #
 class ImageValidator(BaseValidator):
     @time_validator
-    def validate(self, file_path: str) -> ValidationResult:
+    def validate(self, file_path: Path) -> ValidationResult:
         
         errors: List[Dict] = []
         try:
-            image = cv2.imread(file_path)
+            image = cv2.imread(str(file_path))
             if image is None:
                 errors.append({"check": "image_loadable", "error": "File not loadable (may be corrupt or unsupported)."})
             else:
@@ -224,7 +224,7 @@ class ImageValidator(BaseValidator):
 
 # ---------------- JSON Validator (Unchanged) ---------------- #
 class JsonValidator(BaseValidator):
-    def validate(self, file_path: str) -> ValidationResult:
+    def validate(self, file_path: Path) -> ValidationResult:
         errors: List[Dict] = []
         try:
             import json

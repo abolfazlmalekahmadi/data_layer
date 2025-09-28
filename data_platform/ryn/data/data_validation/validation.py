@@ -4,7 +4,7 @@ import os
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Type,Union
 
 from data.data_validation.structures import ValidationReport, ValidationResult
 from data.data_validation.validators import (
@@ -24,10 +24,10 @@ class ArchiveHandler:
     Supports .zip, .tar, .tar.gz, .tgz, .tar.bz2 formats.
     """
 
-    def __init__(self, source_dir: str):
+    def __init__(self, source_dir: Path):
         self.source_dir = Path(source_dir)
 
-    def extract_all(self) -> List[str]:
+    def extract_all(self) -> List[Path]:
         """
         Extracts all supported archive files (.zip, .tar, etc.) into their
         respective containing directories. For example, a file at
@@ -50,7 +50,7 @@ class ArchiveHandler:
         all_archive_files = []
         for pattern in patterns:
             all_archive_files.extend(
-                glob.glob(str(self.source_dir / pattern), recursive=True)
+                glob.glob(str(self.source_dir / Path(pattern)), recursive=True)
             )
 
         if not all_archive_files:
@@ -61,14 +61,14 @@ class ArchiveHandler:
             "Found %d archive file(s) in %s", len(all_archive_files), self.source_dir
         )
 
-        processed_archives: List[str] = []
+        processed_archives: List[Path] = []
         for archive_path_str in all_archive_files:
             try:
                 archive_path = Path(archive_path_str)
                 extract_destination = archive_path.parent
 
                 # --- Logic to handle different archive types ---
-                if archive_path_str.endswith(".zip"):
+                if archive_path_str.suffix == ".zip":
                     with zipfile.ZipFile(archive_path, "r") as archive_ref:
                         logger.info(
                             "Extracting ZIP %s to %s", archive_path, extract_destination
@@ -76,9 +76,7 @@ class ArchiveHandler:
                         archive_ref.extractall(extract_destination)
 
                 # Check for any of the tar extensions
-                elif archive_path_str.endswith(
-                    (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2")
-                ):
+                elif archive_path_str.suffix in (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2"):
                     # Use mode "r:*" to automatically handle different compressions (gz, bz2, etc.)
                     with tarfile.open(archive_path, "r:*") as archive_ref:
                         logger.info(
@@ -111,7 +109,7 @@ class ArchiveHandler:
 
         return processed_archives
 
-    def cleanup(self, archive_paths: List[str]):
+    def cleanup(self, archive_paths: List[Path]):
         """
         Deletes a list of archive files, typically after they have been extracted.
         """
@@ -156,7 +154,7 @@ class DirectoryValidator:
         self._validator_registry[name] = validator_cls
         logger.info("Registered custom validator: %s", name)
 
-    def validate(self, directory_path: Path) -> ValidationReport:
+    def validate(self, directory_path: Path) -> Union[ValidationReport, ValidationResult]:
         """
         Top-level validation method. Manages unzipping, validation, and cleanup.
         """
@@ -264,5 +262,5 @@ class DirectoryValidator:
         validator = validator_cls(rules=rules)
         return validator.validate(file_path)
 
-    def __call__(self, directory_path: str) -> ValidationReport:
+    def __call__(self, directory_path: Path) -> ValidationReport:
         return self.validate(directory_path)
