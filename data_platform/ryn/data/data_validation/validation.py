@@ -182,17 +182,17 @@ class DirectoryValidator:
                     "Single data file detected. Validating file: %s", directory_path
                 )
                 # Assuming tabular validator for single data files; could be enhanced to detect type
-                return self._validate_single_file(str(directory_path), "tabular", {})
+                return self._validate_single_file(directory_path, "tabular", {})
             elif directory_path.suffix in [".jpg", ".jpeg", ".png"]:
                 logger.info(
                     "Single image file detected. Validating file: %s", directory_path
                 )
-                return self._validate_single_file(str(directory_path), "image", {})
+                return self._validate_single_file(directory_path, "image", {})
             elif directory_path.suffix in [".json"]:
                 logger.info(
                     "Single JSON file detected. Validating file: %s", directory_path
                 )
-                return self._validate_single_file(str(directory_path), "json", {})
+                return self._validate_single_file(directory_path, "json", {})
 
         archives_to_cleanup: List[str] = []
 
