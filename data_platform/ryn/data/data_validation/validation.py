@@ -123,7 +123,7 @@ class DirectoryValidator:
         self._validator_registry = {
             "tabular": TabularValidator,
             "image": ImageValidator,
-            # "json": JsonValidator,  # enable when implemented
+            "json": JsonValidator,  # enable when implemented
         }
         logger.info("Registered validators: %s", list(self._validator_registry.keys()))
 
