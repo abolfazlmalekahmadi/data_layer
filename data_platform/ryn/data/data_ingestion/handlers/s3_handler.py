@@ -38,6 +38,11 @@ class S3Handler:
             "path_pattern": "**/*.png",
             "validator": "image",
         },
+        {
+            "name": "Validate for JSON files",
+            "path_pattern": "**/*.json",
+            "validator": "json",  # Assuming a JSON validator exists
+        }
     ]
 
     def __init__(
