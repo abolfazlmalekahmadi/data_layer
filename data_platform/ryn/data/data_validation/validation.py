@@ -253,7 +253,7 @@ class DirectoryValidator:
         return report
 
     def _validate_single_file(
-        self, file_path: str, validator_name: str, rules: Dict[str, Any]
+        self, file_path: Path, validator_name: str, rules: Dict[str, Any]
     ) -> ValidationResult:
         validator_cls = self._validator_registry.get(validator_name)
         if not validator_cls:
@@ -262,5 +262,5 @@ class DirectoryValidator:
         validator = validator_cls(rules=rules)
         return validator.validate(file_path)
 
-    def __call__(self, directory_path: Path) -> ValidationReport:
+    def __call__(self, directory_path: Path) -> Union[ValidationReport, ValidationResult]:
         return self.validate(directory_path)
