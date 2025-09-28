@@ -162,9 +162,9 @@ class TabularValidator(BaseValidator):
         # Get the schema to check column types
         df_schema = lazy_df.schema
 
-        # Iterate through only the STRING columns
+        # Iterate through columns
         for col_name, col_type in df_schema.items():
-            # Check if the column is a text-like type (Utf8 or Categorical)
+            
 
             if col_type not in [pl.Struct, pl.List, pl.Object]:
                 links_found = (
