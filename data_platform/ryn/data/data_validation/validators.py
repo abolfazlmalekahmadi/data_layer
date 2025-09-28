@@ -198,7 +198,6 @@ class TabularValidator(BaseValidator):
         return errors
 
 
-# ---------------- Image Validator (Unchanged) ---------------- #
 class ImageValidator(BaseValidator):
     @time_validator
     def validate(self, file_path: Path) -> ValidationResult:
@@ -235,7 +234,7 @@ class ImageValidator(BaseValidator):
         return [{"check": "solid_color", "error": msg}]
 
 
-# ---------------- JSON Validator (Unchanged) ---------------- #
+
 class JsonValidator(BaseValidator):
     def validate(self, file_path: Path) -> ValidationResult:
         errors: List[Dict] = []
