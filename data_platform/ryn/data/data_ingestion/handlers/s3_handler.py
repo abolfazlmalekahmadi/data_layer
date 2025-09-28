@@ -1,7 +1,7 @@
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
-import os
 
 import boto3
 from fastapi import HTTPException
@@ -10,8 +10,8 @@ from data.data_ingestion.handlers.conditions import DatasetConditionChecker
 from data.data_ingestion.handlers.utils import summarize_dataset
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
+from data.data_validation.structures import ValidationReport, ValidationResult
 from data.data_validation.validation import DirectoryValidator
-from data.data_validation.structures import ValidationResult, ValidationReport
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class S3Handler:
             "name": "Validate for JSON files",
             "path_pattern": "**/*.json",
             "validator": "json",  # Assuming a JSON validator exists
-        }
+        },
     ]
 
     def __init__(
@@ -114,7 +114,9 @@ class S3Handler:
 
         if report.has_failures():
             final_status = "completed_with_errors"
-            final_message = "Dataset stored, but some files failed validation and were excluded."
+            final_message = (
+                "Dataset stored, but some files failed validation and were excluded."
+            )
             logger.warning(
                 f"Validation failed for some files in dataset from S3 path '{s3_file_path}'. "
                 "These files will be excluded."
@@ -155,7 +157,9 @@ class S3Handler:
         )
         if not files:
             final_status = "failed"
-            final_message = "All files in the dataset failed validation. No files were stored."
+            final_message = (
+                "All files in the dataset failed validation. No files were stored."
+            )
             logger.error(
                 f"All files in dataset from S3 path '{s3_file_path}' failed validation. Nothing to store."
             )
@@ -233,10 +237,10 @@ class S3Handler:
                 summary=summarize_dataset(local_file),
                 dataset_tag=dataset_tag or "ML",
             )
-            
+
             # --- Perform validation and cleanup ---
-            final_status, final_message, error_details = self._validate_and_cleanup_dataset(
-                local_file, s3_file_path
+            final_status, final_message, error_details = (
+                self._validate_and_cleanup_dataset(local_file, s3_file_path)
             )
 
             # --- Log remaining files and store the dataset ---
@@ -246,7 +250,7 @@ class S3Handler:
                 else [local_file.name]
             )
             logger.info(f"uploading {len(files_to_upload)} files: {files_to_upload}")
-            
+
             stored_path = storage_handler.store_dataset(
                 local_file,
                 metadata,
