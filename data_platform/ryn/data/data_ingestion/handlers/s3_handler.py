@@ -11,7 +11,8 @@ from data.data_ingestion.handlers.utils import summarize_dataset
 from data.data_ingestion.models.metadata import DatasetMetadata
 from data.data_ingestion.storage_handler import DatasetStorageHandler
 from data.data_validation.validation import DirectoryValidator
-from data.data_validation.structures import ValidationResult, ValidationReport    
+from data.data_validation.structures import ValidationResult, ValidationReport
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +39,7 @@ class S3Handler:
             "validator": "image",
         },
     ]
+
     def __init__(
         self, *, access_key: str, secret_key: str, endpoint_url: str, bucket_name: str
     ):
@@ -70,6 +72,94 @@ class S3Handler:
                 f"S3 download failed for '{remote_path}' in bucket '{self.bucket_name}': {e}"
             )
             raise HTTPException(status_code=500, detail=f"S3 download error: {e}")
+
+    def _validate_and_cleanup_dataset(
+        self, local_file: Path, s3_file_path: str
+    ) -> tuple[str, str, list]:
+        """
+        Validates a local dataset, removes invalid files, and returns validation status.
+
+        Args:
+            local_file: The path to the downloaded local file or directory.
+            s3_file_path: The original S3 path, used for logging.
+
+        Returns:
+            A tuple containing the final status, a descriptive message, and a list of error details.
+
+        Raises:
+            HTTPException: If all files in the dataset fail validation.
+        """
+        logger.info(f"Starting validation for dataset at: {local_file}")
+        if local_file.is_file():
+            logger.info(f"Single file detected: {local_file}")
+
+        # Ensure the validator is configured to unzip archives, which is the default
+        validator = DirectoryValidator(config=self.config, unzip_first=True)
+        report = validator.validate(Path(local_file))
+
+        # check if local_file is a file and convert to ValidationReport
+        if isinstance(report, ValidationResult):
+            report = ValidationReport(directory_path=str(local_file), results=[report])
+
+        logger.info(f"Validation report: {report}")
+
+        error_details = []
+        final_status = "success"
+        final_message = "Dataset from S3 stored successfully."
+
+        if report.has_failures():
+            final_status = "completed_with_errors"
+            final_message = "Dataset stored, but some files failed validation and were excluded."
+            logger.warning(
+                f"Validation failed for some files in dataset from S3 path '{s3_file_path}'. "
+                "These files will be excluded."
+            )
+
+            invalid_file_paths = set()
+            for result in report.results:
+                if not result.is_valid:
+                    error_details.append(
+                        {
+                            "file": result.file_path,
+                            "errors": result.errors,
+                            "warnings": result.warnings,
+                        }
+                    )
+                    invalid_file_paths.add(result.file_path)
+
+            # Remove the invalid files from the temporary directory
+            logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
+            logger.info(f"errors: {error_details}")
+            for file_path in invalid_file_paths:
+                try:
+                    os.remove(file_path)
+                    logger.debug(f"Removed invalid file: {file_path}")
+                except OSError as e:
+                    logger.error(f"Error removing invalid file {file_path}: {e}")
+
+        # Check if all files were invalid and subsequently removed
+        files = (
+            [
+                f
+                for f in local_file.rglob("*")
+                if f.is_file()
+                and f.suffix in (".csv", ".parquet", ".jpg", ".png", ".json")
+            ]
+            if local_file.is_dir()
+            else ([local_file] if local_file.exists() else [])
+        )
+        if not files:
+            final_status = "failed"
+            final_message = "All files in the dataset failed validation. No files were stored."
+            logger.error(
+                f"All files in dataset from S3 path '{s3_file_path}' failed validation. Nothing to store."
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="All files in the dataset failed validation. No files were stored.",
+            )
+
+        return final_status, final_message, error_details
 
     def process_s3_dataset(
         self,
@@ -138,85 +228,28 @@ class S3Handler:
                 summary=summarize_dataset(local_file),
                 dataset_tag=dataset_tag or "ML",
             )
-
             
-            logger.info(f"Starting validation for dataset at: {local_file}")
+            # --- Perform validation and cleanup ---
+            final_status, final_message, error_details = self._validate_and_cleanup_dataset(
+                local_file, s3_file_path
+            )
 
-            if local_file.is_file():
-                logger.info(f"Single file detected: {local_file}")
-                
-
-
-
-
-            # Ensure the validator is configured to unzip archives, which is the default
-            validator = DirectoryValidator(config=self.config, unzip_first=True)
-            report = validator.validate(Path(local_file))
-
-            #check if local_file is a file and convert to ValidationReport
-            if isinstance(report,ValidationResult):
-                report = ValidationReport(directory_path=str(local_file), results=[report])
-
-            logger.info(f"Validation report: {report}")
-
-            error_details = []
-            final_status = "success"
-            final_message = "Dataset from S3 stored successfully."
-
-            if report.has_failures():
-                final_status = "completed_with_errors"
-                final_message = "Dataset stored, but some files failed validation and were excluded."
-                logger.warning(
-                    f"Validation failed for some files in dataset from S3 path '{s3_file_path}'. "
-                    "These files will be excluded."
-                )
-
-                invalid_file_paths = set()
-                for result in report.results:
-                    if not result.is_valid:
-                        error_details.append({
-                            "file": result.file_path,
-                            "errors": result.errors,
-                            "warnings": result.warnings,
-                        })
-                        invalid_file_paths.add(result.file_path)
-
-                #Remove the invalid files from the temporary directory
-                logger.info(f"Removing {len(invalid_file_paths)} invalid file(s)...")
-                logger.info(f"errors: {error_details}")
-                for file_path in invalid_file_paths:
-                    try:
-                        os.remove(file_path)
-                        logger.debug(f"Removed invalid file: {file_path}")
-                    except OSError as e:
-                        logger.error(f"Error removing invalid file {file_path}: {e}")
-                
-
-
-            # check if all files are not valid 
-            files = [f.name for f in local_file.rglob("*")
-                if f.is_file() and f.suffix in (".csv", ".parquet", ".jpg", ".png", ".json")
-                ] if local_file.is_dir() else [local_file]
-            if not files:
-                final_status = "failed"
-                final_message = "All files in the dataset failed validation. No files were stored."
-                logger.error(
-                    f"All files in dataset from S3 path '{s3_file_path}' failed validation. Nothing to store."
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail="All files in the dataset failed validation. No files were stored.",
-                )
+            # --- Log remaining files and store the dataset ---
+            files_to_upload = (
+                [f.name for f in local_file.rglob("*") if f.is_file()]
+                if local_file.is_dir()
+                else [local_file.name]
+            )
+            logger.info(f"uploading {len(files_to_upload)} files: {files_to_upload}")
             
-            logger.info(f"uploading {len(files)} files: {files}")
             stored_path = storage_handler.store_dataset(
-                local_file, 
+                local_file,
                 metadata,
                 s3_config=s3_config_target,
                 clearml_config=clearml_config,
             )
-            
-            #Construct final response ---
+
+            # --- Construct final response ---
             response = {
                 "status": final_status,
                 "message": final_message,
@@ -225,7 +258,7 @@ class S3Handler:
             }
             if error_details:
                 response["validation_errors"] = error_details
-            
+
             return response
         except HTTPException:
             raise

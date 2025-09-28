@@ -138,7 +138,7 @@ class DirectoryValidator:
         """
         Top-level validation method. Manages unzipping, validation, and cleanup.
         """
-        # CHANGE: Renamed variable for clarity. It now holds archive paths.
+        # checking if input is a file or directory
         if directory_path.is_file():
             if directory_path.suffix in ['.zip', '.tar', '.tar.gz', '.tgz', '.tar.bz2', '.tbz2']:
                 # If a single archive file is provided, extract it to a temp directory
@@ -159,13 +159,15 @@ class DirectoryValidator:
                 return self._validate_single_file(str(directory_path), "json", {})
             
         archives_to_cleanup: List[str] = []
+
+        # Step 1: Unzip archives if configured to do so
         if self.unzip_first:
             archive_handler = ArchiveHandler(directory_path)
             archives_to_cleanup = archive_handler.extract_all()
 
         report = self._validate_directory(directory_path)
 
-        # CHANGE: This will now pass the list of zip file paths to the cleanup method.
+        # Step 3: Cleanup extracted archives
         if archives_to_cleanup:
             ArchiveHandler(directory_path).cleanup(archives_to_cleanup)
 
