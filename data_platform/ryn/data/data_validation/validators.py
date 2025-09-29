@@ -1,18 +1,16 @@
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List
 
-
-import re
 import cv2
+import librosa
 import numpy as np
 import polars as pl
 from polars import LazyFrame
 
 from data.data_validation.structures import ValidationResult
 from data.data_validation.utils import time_validator
-
-import librosa 
 
 
 class BaseValidator(ABC):
@@ -167,8 +165,6 @@ class TabularValidator(BaseValidator):
 
         # Iterate through columns
         for col_name, col_type in df_schema.items():
-            
-
             if col_type not in [pl.Struct, pl.List, pl.Object]:
                 links_found = (
                     df_with_index.filter(
@@ -237,7 +233,6 @@ class ImageValidator(BaseValidator):
         return [{"check": "solid_color", "error": msg}]
 
 
-
 class JsonValidator(BaseValidator):
     def validate(self, file_path: Path) -> ValidationResult:
         errors: List[Dict] = []
@@ -269,7 +264,7 @@ class AudioValidator(BaseValidator):
         try:
             # sr=None preserves the native sample rate
             audio_data, sample_rate = librosa.load(str(file_path), sr=None)
-            
+
             # Perform checks on the loaded audio data
             errors.extend(self._check_silence(audio_data))
             errors.extend(self._check_duration(audio_data, sample_rate))
@@ -286,7 +281,7 @@ class AudioValidator(BaseValidator):
         """Check if the audio is effectively silent."""
         if not self.rules.get("disallow_silence", True):
             return []
-        
+
         # A small threshold to account for floating point inaccuracies or faint noise
         silence_threshold = self.rules.get("silence_threshold", 1e-6)
 
@@ -294,7 +289,9 @@ class AudioValidator(BaseValidator):
             return [{"check": "silent_audio", "error": "Audio is effectively silent."}]
         return []
 
-    def _check_duration(self, audio_data: np.ndarray, sample_rate: int | float) -> List[Dict]:
+    def _check_duration(
+        self, audio_data: np.ndarray, sample_rate: int | float
+    ) -> List[Dict]:
         """Check if the audio meets a minimum duration."""
         min_duration_sec = 0.5
         if not min_duration_sec:
@@ -309,7 +306,6 @@ class AudioValidator(BaseValidator):
                 }
             ]
         return []
-    
 
 
 class TextValidator(BaseValidator):
@@ -324,21 +320,23 @@ class TextValidator(BaseValidator):
         """Initializes the validator. The 'rules' are ignored in this implementation."""
         # We explicitly do not use the rules dictionary to rely on built-in logic.
         super().__init__({})
-        
+
         # --- Define Hardcoded, "No-Config" Rules ---
         self.MAX_FILE_SIZE_MB = 2000  # Prevent validating huge binary files
-        self.MAX_LINE_LENGTH = 10000 # Flag unnaturally long lines
+        self.MAX_LINE_LENGTH = 10000  # Flag unnaturally long lines
         self.ENCODING = "utf-8"
-        
+
         self.FORBIDDEN_PATTERNS = [
             re.compile(r"(?i)-----BEGIN (RSA|OPENSSH|EC) PRIVATE KEY-----"),
             re.compile(r"(?i)api_key\s*[:=]\s*['\"]?([a-zA-Z0-9_.-]{16,})['\"]?"),
             re.compile(r"(?i)secret_key\s*[:=]\s*['\"]?([a-zA-Z0-9_.-]{16,})['\"]?"),
             re.compile(r"(?i)password\s*[:=]\s*['\"]?(.{8,})['\"]?"),
             re.compile(r"sk_live_[0-9a-zA-Z]{24}"),  # Stripe Live API Key
-            re.compile(r"AKIA[0-9A-Z]{16}"),       # AWS Access Key ID
-            re.compile(r"xoxp-[0-9a-zA-Z-]{20,}"), # Slack Token
-            re.compile(r"\b[a-fA-F0-9]{40,}\b")    # Generic long hex string (e.g., SHA1/256)
+            re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS Access Key ID
+            re.compile(r"xoxp-[0-9a-zA-Z-]{20,}"),  # Slack Token
+            re.compile(
+                r"\b[a-fA-F0-9]{40,}\b"
+            ),  # Generic long hex string (e.g., SHA1/256)
         ]
 
     @time_validator
@@ -370,7 +368,7 @@ class TextValidator(BaseValidator):
                         if err:
                             errors.append(err)
                             failed_checks.add("line_length")
-                    
+
                     # Check for forbidden patterns
                     if "forbidden_content" not in failed_checks:
                         err = self._check_forbidden_patterns(line, line_num)
@@ -378,46 +376,54 @@ class TextValidator(BaseValidator):
                             errors.extend(err)
                             failed_checks.add("forbidden_content")
                     if "contains_links" not in failed_checks:
-                        war = self.check_line_link(line,line_num)
+                        war = self.check_line_link(line, line_num)
                         if war:
                             warnings.append(war)
                             failed_checks.add("contains_links")
         except UnicodeDecodeError:
-            errors.append({
-                "check": "file_encoding",
-                "error": f"File is not valid {self.ENCODING}. Check file encoding.",
-            })
+            errors.append(
+                {
+                    "check": "file_encoding",
+                    "error": f"File is not valid {self.ENCODING}. Check file encoding.",
+                }
+            )
         except Exception as e:
             errors.append({"check": "file_read_process", "error": str(e)})
 
         return ValidationResult(
-            file_path, is_valid=not errors, validator_used="text", errors=errors, warnings=warnings
+            file_path,
+            is_valid=not errors,
+            validator_used="text",
+            errors=errors,
+            warnings=warnings,
         )
 
     def _check_file_size(self, file_path: Path) -> List[Dict]:
         file_size_bytes = file_path.stat().st_size
         if file_size_bytes == 0:
             return [{"check": "empty_file", "error": "File is empty."}]
-        
+
         file_size_mb = file_size_bytes / (1024 * 1024)
         if file_size_mb > self.MAX_FILE_SIZE_MB:
-            return [{
-                "check": "file_size",
-                "error": f"File size {file_size_mb:.2f}MB exceeds maximum {self.MAX_FILE_SIZE_MB}MB.",
-            }]
+            return [
+                {
+                    "check": "file_size",
+                    "error": f"File size {file_size_mb:.2f}MB exceeds maximum {self.MAX_FILE_SIZE_MB}MB.",
+                }
+            ]
         return []
-    
-    def check_line_link(self, line: str,line_num: int) -> Dict | None:
+
+    def check_line_link(self, line: str, line_num: int) -> Dict | None:
         link_pattern = r"((?:https?://|ftp://|www\.)\S+)"
 
         for match in re.finditer(link_pattern, line):
-            return { 
-            "check": "contains_links",
-            "row": line_num,
-            "error": f"Line contains link matching: '{match.group(0)}'",
+            return {
+                "check": "contains_links",
+                "row": line_num,
+                "error": f"Line contains link matching: '{match.group(0)}'",
             }
         return None
-    
+
     def _check_line_length(self, line: str, line_num: int) -> Dict | None:
         if len(line) > self.MAX_LINE_LENGTH:
             return {
@@ -432,11 +438,13 @@ class TextValidator(BaseValidator):
 
         for pattern in self.FORBIDDEN_PATTERNS:
             for match in re.finditer(pattern, line):
-                errors.append({
-                    "check": "forbidden_content",
-                    "row": line_num,
-                    "error": f"Line contains sensitive pattern matching: '{match.group(0)}'",
-                })
+                errors.append(
+                    {
+                        "check": "forbidden_content",
+                        "row": line_num,
+                        "error": f"Line contains sensitive pattern matching: '{match.group(0)}'",
+                    }
+                )
                 break
 
         return errors if errors else None
