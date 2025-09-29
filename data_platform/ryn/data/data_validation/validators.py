@@ -10,6 +10,8 @@ from polars import LazyFrame
 from data.data_validation.structures import ValidationResult
 from data.data_validation.utils import time_validator
 
+import librosa 
+
 
 class BaseValidator(ABC):
     """
@@ -247,3 +249,61 @@ class JsonValidator(BaseValidator):
         return ValidationResult(
             file_path, is_valid=not errors, validator_used="json", errors=errors
         )
+
+
+class AudioValidator(BaseValidator):
+    """
+    Validates audio files using librosa.
+
+    Checks for:
+    - Loadability: If the file can be read as audio.
+    - Silence: If the audio is completely or nearly silent.
+    - Minimum Duration: If the audio is shorter than a specified threshold.
+    """
+
+    @time_validator
+    def validate(self, file_path: Path) -> ValidationResult:
+        errors: List[Dict] = []
+        try:
+            # sr=None preserves the native sample rate
+            audio_data, sample_rate = librosa.load(str(file_path), sr=None)
+            
+            # Perform checks on the loaded audio data
+            errors.extend(self._check_silence(audio_data))
+            errors.extend(self._check_duration(audio_data, sample_rate))
+
+        except Exception as e:
+            # This will catch errors from librosa if the file is corrupt/unsupported
+            errors.append({"check": "audio_loadable", "error": str(e)})
+
+        return ValidationResult(
+            file_path, is_valid=not errors, validator_used="audio", errors=errors
+        )
+
+    def _check_silence(self, audio_data: np.ndarray) -> List[Dict]:
+        """Check if the audio is effectively silent."""
+        if not self.rules.get("disallow_silence", True):
+            return []
+        
+        # A small threshold to account for floating point inaccuracies or faint noise
+        silence_threshold = self.rules.get("silence_threshold", 1e-6)
+
+        if np.max(np.abs(audio_data)) < silence_threshold:
+            return [{"check": "silent_audio", "error": "Audio is effectively silent."}]
+        return []
+
+    def _check_duration(self, audio_data: np.ndarray, sample_rate: int) -> List[Dict]:
+        """Check if the audio meets a minimum duration."""
+        min_duration_sec = 0.5
+        if not min_duration_sec:
+            return []
+
+        duration = librosa.get_duration(y=audio_data, sr=sample_rate)
+        if duration < min_duration_sec:
+            return [
+                {
+                    "check": "minimum_duration",
+                    "error": f"Duration is {duration:.2f}s, less than required {min_duration_sec}s.",
+                }
+            ]
+        return []

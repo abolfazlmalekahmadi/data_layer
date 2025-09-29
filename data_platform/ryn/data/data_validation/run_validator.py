@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np 
 import shutil
+import scipy.io.wavfile as wavfile
 
 # Import the main orchestrator class
 from data.data_validation.validation import DirectoryValidator
@@ -18,6 +19,8 @@ def setup_test_directory(root_dir: Path):
     transactions_path = root_dir / "processed/transactions/day=1"
     images_path = root_dir / "assets/product_images"
     large_files_path = root_dir / "landing/large_files"
+    audio_path = root_dir / "assets/audio_files"
+    audio_path.mkdir(parents=True, exist_ok=True)
     images_path.mkdir(parents=True, exist_ok=True)
 
     large_files_path.mkdir(parents=True, exist_ok=True)
@@ -104,37 +107,37 @@ def setup_test_directory(root_dir: Path):
     # print(f"Created: {users_path / 'users_bad.csv'}")
 
     # 3. Create a valid Parquet file to test a different file type and pattern
-    transaction_data = {
-        "transaction_id": ["txn_101", "txn_102"],
-        "user_id": [1, 3],
-        "amount": [99.99, 12.50]
-    }
-    pd.DataFrame(transaction_data).to_parquet(transactions_path / "transactions.parquet")
-    print(f"Created: {transactions_path / 'transactions.parquet'}")
+    # transaction_data = {
+    #     "transaction_id": ["txn_101", "txn_102"],
+    #     "user_id": [1, 3],
+    #     "amount": [99.99, 12.50]
+    # }
+    # pd.DataFrame(transaction_data).to_parquet(transactions_path / "transactions.parquet")
+    # print(f"Created: {transactions_path / 'transactions.parquet'}")
 
-    valid_image_path = images_path / "product_good.jpg"
-    good_image_data = np.zeros((512, 512, 3), dtype=np.uint8) # Start with black
-    good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
-    cv2.imwrite(str(valid_image_path), good_image_data)
-    print(f"Created: {valid_image_path}")
+    # valid_image_path = images_path / "product_good.jpg"
+    # good_image_data = np.zeros((512, 512, 3), dtype=np.uint8) # Start with black
+    # good_image_data[0, 0] = [255, 255, 255] # Add a single white pixel to make it valid
+    # cv2.imwrite(str(valid_image_path), good_image_data)
+    # print(f"Created: {valid_image_path}")
 
-    # # 2. A completely BLACK image (should fail)
-    black_image_path = images_path / "product_black.jpg"
-    black_image_data = np.zeros((512, 512, 3), dtype=np.uint8)
-    cv2.imwrite(str(black_image_path), black_image_data)
-    print(f"Created: {black_image_path}")
+    # # # 2. A completely BLACK image (should fail)
+    # black_image_path = images_path / "product_black.jpg"
+    # black_image_data = np.zeros((512, 512, 3), dtype=np.uint8)
+    # cv2.imwrite(str(black_image_path), black_image_data)
+    # print(f"Created: {black_image_path}")
     
-    # 3. A completely WHITE image (should fail)
-    white_image_path = images_path / "product_white.jpg"
-    white_image_data = np.ones((512,512 , 3), dtype=np.uint8) * 255
-    cv2.imwrite(str(white_image_path), white_image_data)
-    print(f"Created: {white_image_path}")
+    # # 3. A completely WHITE image (should fail)
+    # white_image_path = images_path / "product_white.jpg"
+    # white_image_data = np.ones((512,512 , 3), dtype=np.uint8) * 255
+    # cv2.imwrite(str(white_image_path), white_image_data)
+    # print(f"Created: {white_image_path}")
 
-    # 4. An INVALID image file (a text file with a .jpg extension)
-    invalid_image_path = images_path / "product_corrupt.jpg"
-    with open(invalid_image_path, "w") as f:
-        f.write("This is not an image!")
-    print(f"Created: {invalid_image_path}")
+    # # 4. An INVALID image file (a text file with a .jpg extension)
+    # invalid_image_path = images_path / "product_corrupt.jpg"
+    # with open(invalid_image_path, "w") as f:
+    #     f.write("This is not an image!")
+    # print(f"Created: {invalid_image_path}")
     # 4. Create the YAML configuration file
     # config_content = """
     # - name: "Validate User CSVs"
@@ -158,6 +161,36 @@ def setup_test_directory(root_dir: Path):
     #         - "transaction_id"
     #         - "user_id"
     # """
+    
+    # 1. Good audio file (2-second 440Hz sine wave)
+    sample_rate = 16000
+    good_audio_path = audio_path / "good_audio.wav"
+    duration_sec = 2
+    t = np.linspace(0.0, duration_sec, int(sample_rate * duration_sec), endpoint=False)
+    amplitude = np.iinfo(np.int16).max * 0.5
+    data = amplitude * np.sin(2.0 * np.pi * 440.0 * t)
+    wavfile.write(str(good_audio_path), sample_rate, data.astype(np.int16))
+    print(f"Created: {good_audio_path}")
+
+    # 2. Silent audio file
+    silent_audio_path = audio_path / "silent_audio.wav"
+    silent_data = np.zeros(sample_rate, dtype=np.int16) # 1 second of silence
+    wavfile.write(str(silent_audio_path), sample_rate, silent_data)
+    print(f"Created: {silent_audio_path}")
+    
+    # 3. Too short audio file (0.05 seconds)
+    short_audio_path = audio_path / "short_audio.wav"
+    short_duration_sec = 0.05
+    t_short = np.linspace(0., short_duration_sec, int(sample_rate * short_duration_sec), endpoint=False)
+    short_data = amplitude * np.sin(2. * np.pi * 440. * t_short)
+    wavfile.write(str(short_audio_path), sample_rate, short_data.astype(np.int16))
+    print(f"Created: {short_audio_path}")
+    
+    # 4. Corrupt audio file
+    corrupt_audio_path = audio_path / "corrupt_audio.wav"
+    with open(corrupt_audio_path, "w") as f:
+        f.write("This is not valid audio data.")
+    print(f"Created: {corrupt_audio_path}")
     config_path = root_dir / "validation_config.yaml"
     # with open(config_path, "w") as f:
     #     f.write(config_content)
@@ -177,8 +210,38 @@ def main():
 
     # 2. Load the configuration from the YAML file
     print("\n--- Loading configuration ---")
-    with open(script_dir/"validation_config.yaml", 'r') as f:
-        config = yaml.safe_load(f)
+    config = [
+        {
+            "name": "Validate User CSVs",
+            "path_pattern": "**/*.csv",
+            "validator": "tabular",
+        },
+        {
+            "name": "Validate Transaction Parquet Files",
+            "path_pattern": "**/*.parquet",
+            "validator": "tabular",
+        },
+        {
+            "name": "Validate for Image files",
+            "path_pattern": "**/*.jpg",
+            "validator": "image",
+        },
+        {
+            "name": "Validate for Image files(png)",
+            "path_pattern": "**/*.png",
+            "validator": "image",
+        },
+        {
+            "name": "Validate for JSON files",
+            "path_pattern": "**/*.json",
+            "validator": "json",  # Assuming a JSON validator exists
+        },
+        {
+            "name": "Validate for Audio files",
+            "path_pattern": "**/*.wav",
+            "validator": "audio",  # Assuming an Audio validator exists
+        },]
+       
 
     print(config)
     print("Configuration loaded successfully.")

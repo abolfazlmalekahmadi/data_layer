@@ -10,6 +10,7 @@ from data.data_validation.validators import (
     ImageValidator,
     JsonValidator,
     TabularValidator,
+    AudioValidator
 )
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,8 @@ class DirectoryValidator:
         self._validator_registry = {
             "tabular": TabularValidator,
             "image": ImageValidator,
-            "json": JsonValidator,  # enable when implemented
+            "json": JsonValidator,
+            "audio": AudioValidator,
         }
         logger.info("Registered validators: %s", list(self._validator_registry.keys()))
 

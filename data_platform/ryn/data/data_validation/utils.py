@@ -88,7 +88,7 @@ class ArchiveHandler:
                 extract_destination = archive_path.parent
 
                 # --- Logic to handle different archive types ---
-                if archive_path_str.suffix == ".zip":
+                if archive_path.suffix == ".zip":
                     with zipfile.ZipFile(archive_path, "r") as archive_ref:
                         logger.info(
                             "Extracting ZIP %s to %s", archive_path, extract_destination
@@ -96,7 +96,7 @@ class ArchiveHandler:
                         archive_ref.extractall(extract_destination)
 
                 # Check for any of the tar extensions
-                elif archive_path_str.suffix in (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2"):
+                elif archive_path.suffix in (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2"):
                     # Use mode "r:*" to automatically handle different compressions (gz, bz2, etc.)
                     with tarfile.open(archive_path, "r:*") as archive_ref:
                         logger.info(
@@ -107,12 +107,12 @@ class ArchiveHandler:
                 else:
                     # This case should ideally not be hit due to the glob patterns
                     logger.warning(
-                        "Skipping unrecognized archive format: %s", archive_path_str
+                        "Skipping unrecognized archive format: %s", archive_path
                     )
                     continue
 
                 # If extraction was successful, add the archive to the list for cleanup
-                processed_archives.append(archive_path_str)
+                processed_archives.append(archive_path)
 
             except zipfile.BadZipFile:
                 logger.warning("Skipping corrupt zip file: %s", archive_path_str)

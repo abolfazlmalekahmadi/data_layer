@@ -43,6 +43,15 @@ class S3Handler:
             "path_pattern": "**/*.json",
             "validator": "json",  # Assuming a JSON validator exists
         },
+        {
+            "name": "Validate for Audio files",
+            "path_pattern": "**/*.wav",
+            "validator": "audio",  # Assuming an Audio validator exists
+        },
+        {"name": "Validate for Audio files(mp3)",
+         "path_pattern": "**/*.mp3",
+            "validator": "audio"  # Assuming an Audio validator exists
+        },
     ]
 
     def __init__(
