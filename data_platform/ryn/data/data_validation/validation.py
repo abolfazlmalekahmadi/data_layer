@@ -6,12 +6,12 @@ from typing import Any, Dict, List, Type, Union
 from data.data_validation.structures import ValidationReport, ValidationResult
 from data.data_validation.utils import ArchiveHandler
 from data.data_validation.validators import (
+    AudioValidator,
     BaseValidator,
     ImageValidator,
     JsonValidator,
     TabularValidator,
-    AudioValidator,
-    TextValidator
+    TextValidator,
 )
 
 logger = logging.getLogger(__name__)
