@@ -10,7 +10,8 @@ from data.data_validation.validators import (
     ImageValidator,
     JsonValidator,
     TabularValidator,
-    AudioValidator
+    AudioValidator,
+    TextValidator
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class DirectoryValidator:
             "image": ImageValidator,
             "json": JsonValidator,
             "audio": AudioValidator,
+            "text": TextValidator,
         }
         logger.info("Registered validators: %s", list(self._validator_registry.keys()))
 
@@ -138,7 +140,7 @@ class DirectoryValidator:
             validator = validator_cls(rules=rules)
             for file_path in matched_files:
                 try:
-                    result: ValidationResult = validator.validate(file_path)
+                    result: ValidationResult = validator.validate(Path(file_path))
                     report.add_result(result)
                 except Exception as e:
                     logger.error("Validation failed for %s: %s", file_path, e)

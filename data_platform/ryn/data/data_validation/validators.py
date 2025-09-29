@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List
 
+
+import re
 import cv2
 import numpy as np
 import polars as pl
@@ -292,7 +294,7 @@ class AudioValidator(BaseValidator):
             return [{"check": "silent_audio", "error": "Audio is effectively silent."}]
         return []
 
-    def _check_duration(self, audio_data: np.ndarray, sample_rate: int) -> List[Dict]:
+    def _check_duration(self, audio_data: np.ndarray, sample_rate: int | float) -> List[Dict]:
         """Check if the audio meets a minimum duration."""
         min_duration_sec = 0.5
         if not min_duration_sec:
@@ -307,3 +309,134 @@ class AudioValidator(BaseValidator):
                 }
             ]
         return []
+    
+
+
+class TextValidator(BaseValidator):
+    """
+    Validates text-based files with built-in, sensible defaults.
+    This version is designed to run without an external configuration.
+
+    It checks for common issues like secrets, overly long lines, and bad encoding.
+    """
+
+    def __init__(self, rules: Dict[str, Any] | None = None):
+        """Initializes the validator. The 'rules' are ignored in this implementation."""
+        # We explicitly do not use the rules dictionary to rely on built-in logic.
+        super().__init__({})
+        
+        # --- Define Hardcoded, "No-Config" Rules ---
+        self.MAX_FILE_SIZE_MB = 2000  # Prevent validating huge binary files
+        self.MAX_LINE_LENGTH = 10000 # Flag unnaturally long lines
+        self.ENCODING = "utf-8"
+        
+        self.FORBIDDEN_PATTERNS = [
+            re.compile(r"(?i)-----BEGIN (RSA|OPENSSH|EC) PRIVATE KEY-----"),
+            re.compile(r"(?i)api_key\s*[:=]\s*['\"]?([a-zA-Z0-9_.-]{16,})['\"]?"),
+            re.compile(r"(?i)secret_key\s*[:=]\s*['\"]?([a-zA-Z0-9_.-]{16,})['\"]?"),
+            re.compile(r"(?i)password\s*[:=]\s*['\"]?(.{8,})['\"]?"),
+            re.compile(r"sk_live_[0-9a-zA-Z]{24}"),  # Stripe Live API Key
+            re.compile(r"AKIA[0-9A-Z]{16}"),       # AWS Access Key ID
+            re.compile(r"xoxp-[0-9a-zA-Z-]{20,}"), # Slack Token
+            re.compile(r"\b[a-fA-F0-9]{40,}\b")    # Generic long hex string (e.g., SHA1/256)
+        ]
+
+    @time_validator
+    def validate(self, file_path: Path) -> ValidationResult:
+        errors: List[Dict] = []
+        warnings: List[Dict] = []
+
+        # 1. File-level checks (size, emptiness)
+        try:
+            errors.extend(self._check_file_size(file_path))
+            if errors:
+                return ValidationResult(
+                    file_path, is_valid=False, validator_used="text", errors=errors
+                )
+        except Exception as e:
+            errors.append({"check": "file_metadata_read", "error": str(e)})
+            return ValidationResult(
+                file_path, is_valid=False, validator_used="text", errors=errors
+            )
+
+        # 2. Line-by-line checks for memory efficiency
+        failed_checks = set()
+        try:
+            with open(file_path, "r", encoding=self.ENCODING) as f:
+                for line_num, line in enumerate(f, 1):
+                    # Check for long lines
+                    if "line_length" not in failed_checks:
+                        err = self._check_line_length(line, line_num)
+                        if err:
+                            errors.append(err)
+                            failed_checks.add("line_length")
+                    
+                    # Check for forbidden patterns
+                    if "forbidden_content" not in failed_checks:
+                        err = self._check_forbidden_patterns(line, line_num)
+                        if err:
+                            errors.extend(err)
+                            failed_checks.add("forbidden_content")
+                    if "contains_links" not in failed_checks:
+                        war = self.check_line_link(line,line_num)
+                        if war:
+                            warnings.append(war)
+                            failed_checks.add("contains_links")
+        except UnicodeDecodeError:
+            errors.append({
+                "check": "file_encoding",
+                "error": f"File is not valid {self.ENCODING}. Check file encoding.",
+            })
+        except Exception as e:
+            errors.append({"check": "file_read_process", "error": str(e)})
+
+        return ValidationResult(
+            file_path, is_valid=not errors, validator_used="text", errors=errors, warnings=warnings
+        )
+
+    def _check_file_size(self, file_path: Path) -> List[Dict]:
+        file_size_bytes = file_path.stat().st_size
+        if file_size_bytes == 0:
+            return [{"check": "empty_file", "error": "File is empty."}]
+        
+        file_size_mb = file_size_bytes / (1024 * 1024)
+        if file_size_mb > self.MAX_FILE_SIZE_MB:
+            return [{
+                "check": "file_size",
+                "error": f"File size {file_size_mb:.2f}MB exceeds maximum {self.MAX_FILE_SIZE_MB}MB.",
+            }]
+        return []
+    
+    def check_line_link(self, line: str,line_num: int) -> Dict | None:
+        link_pattern = r"((?:https?://|ftp://|www\.)\S+)"
+
+        for match in re.finditer(link_pattern, line):
+            return { 
+            "check": "contains_links",
+            "row": line_num,
+            "error": f"Line contains link matching: '{match.group(0)}'",
+            }
+        return None
+    
+    def _check_line_length(self, line: str, line_num: int) -> Dict | None:
+        if len(line) > self.MAX_LINE_LENGTH:
+            return {
+                "check": "line_length",
+                "row": line_num,
+                "error": f"Line is too long ({len(line)} chars, max is {self.MAX_LINE_LENGTH}).",
+            }
+        return None
+
+    def _check_forbidden_patterns(self, line: str, line_num: int) -> List[Dict] | None:
+        errors: List[Dict] = []
+
+        for pattern in self.FORBIDDEN_PATTERNS:
+            for match in re.finditer(pattern, line):
+                errors.append({
+                    "check": "forbidden_content",
+                    "row": line_num,
+                    "error": f"Line contains sensitive pattern matching: '{match.group(0)}'",
+                })
+                break
+
+        return errors if errors else None

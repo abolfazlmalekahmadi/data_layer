@@ -195,6 +195,58 @@ def setup_test_directory(root_dir: Path):
     # with open(config_path, "w") as f:
     #     f.write(config_content)
     # print(f"Created: {config_path}")
+    logs_path = root_dir / "logs"
+    logs_path.mkdir(parents=True, exist_ok=True)
+
+    # 1. Good log file (should pass all checks)
+    good_log_path = logs_path / "app_2023-10-27.log"
+    with open(good_log_path, "w", encoding="utf-8") as f:
+        f.write("INFO: Application started successfully.\n")
+        f.write("DEBUG: Configuration loaded from environment.\n")
+        f.write("INFO: Processing request #12345.\n")
+    print(f"Created (should pass): {good_log_path}")
+
+    # 2. Empty log file (should fail 'disallow_empty_file')
+    empty_log_path = logs_path / "empty.log"
+    open(empty_log_path, 'a').close()
+    print(f"Created (should fail - empty): {empty_log_path}")
+
+    # 3. Log file with a forbidden pattern (should fail 'forbidden_patterns')
+    secret_log_path = logs_path / "app_error.log"
+    with open(secret_log_path, "w", encoding="utf-8") as f:
+        f.write("ERROR: Failed to connect to database.\n")
+        f.write("FATAL: Credentials compromised. User provided password='MyWeakPassword123'\n")
+        f.write("FATAL: Credentials compromised. User provided password='MyWeakPassword123'\n")
+
+    print(f"Created (should fail - forbidden pattern): {secret_log_path}")
+
+    # 4. Log file with a very long line (should fail 'max_line_length')
+    long_line_log_path = logs_path / "long_line.log"
+    with open(long_line_log_path, "w", encoding="utf-8") as f:
+        f.write("This is a normal line.\n")
+        f.write("This is a very long line designed to fail the max_line_length check " + ("." * 10000) + "\n")
+    print(f"Created (should fail - long line): {long_line_log_path}")
+
+    # 5. File with bad encoding (should fail 'file_encoding')
+    bad_encoding_path = logs_path / "legacy_output.log"
+    # Write with UTF-16, but validator will try to read as UTF-8
+    with open(bad_encoding_path, "w", encoding="utf-16") as f:
+        f.write("This file contains special characters: ö, é, å\n")
+    print(f"Created (should fail - bad encoding): {bad_encoding_path}")
+
+    # 6. File with a non-printable control character (should fail 'control_character')
+    control_char_path = logs_path / "control_chars.log"
+    with open(control_char_path, "w", encoding="utf-8") as f:
+        f.write("Line with a bell character: \x07\n") # \x07 is the ASCII BELL character
+    print(f"Created (should fail - control character): {control_char_path}")
+
+    # 7. Log file with links for replacement test
+    link_log_path = logs_path / "user_comments.log"
+    with open(link_log_path, "w", encoding="utf-8") as f:
+        f.write("User 101 reported an issue. See ticket at https://jira.company.com/browse/PROJ-123\n")
+        f.write("No issues for user 102.\n")
+        f.write("User 103 provided feedback via http://feedback.com and also mentioned www.google.com\n")
+    print(f"Created (should warn and replace links): {link_log_path}")
     print("--- Test setup complete ---")
     return config_path
 
@@ -240,7 +292,21 @@ def main():
             "name": "Validate for Audio files",
             "path_pattern": "**/*.wav",
             "validator": "audio",  # Assuming an Audio validator exists
-        },]
+        },
+        {"name": "Validate for Audio files(mp3)",
+         "path_pattern": "**/*.mp3",
+            "validator": "audio"  # Assuming an Audio validator exists
+        },
+        {"name": "Validate for Text files",
+         "path_pattern": "**/*.txt",
+            "validator": "text"  # Assuming a Text validator exists
+        },
+        {
+            "name": "Validate Log Files",
+            "path_pattern": "**/*.log",
+            "validator": "text",
+        }
+        ]
        
 
     print(config)
@@ -268,12 +334,7 @@ def main():
         if not result.is_valid:
             print("Errors:")
             for error in result.errors:
-                print(f"  - Check: {error.get('check')}")
-                if 'column' in error:
-                    print(f"    Column: {error.get('column')}")
-                print(f"    Details: {error.get('error')}")
-                if 'example' in error:
-                    print(f"   example: {error.get('example')}")
+                print(error)
         for warning in result.warnings:
             print(f"   warning: {warning}")
 
